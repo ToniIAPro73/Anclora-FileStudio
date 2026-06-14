@@ -1,5 +1,5 @@
 # =============================================================================
-# stop-link2media.ps1 — Cierra Link2Media de forma segura (Windows)
+# stop-link2media.ps1 - Cierra Link2Media de forma segura (Windows)
 # Invocado por CERRAR_LINK2MEDIA.bat
 # =============================================================================
 [CmdletBinding()]
@@ -15,7 +15,7 @@ $PidFile  = Join-Path $BaseDir 'data\link2media.pid'
 $PortFile = Join-Path $BaseDir 'data\link2media.port'
 
 Write-Host ""
-Write-Host "  Link2Media — Cerrando..." -ForegroundColor White
+Write-Host "  Link2Media - Cerrando..." -ForegroundColor White
 Write-Host ""
 
 if (-not (Test-Path $PidFile)) {
@@ -52,14 +52,14 @@ if ($proc.Name -notmatch '^node') {
     exit 1
 }
 
-# Terminar únicamente ese proceso
+# Terminar unicamente ese proceso
 Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
 
-# Esperar confirmación
+# Esperar confirmacion
 Start-Sleep -Milliseconds 500
 $check = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
 if ($null -ne $check) {
-    Write-Host "  Advertencia: el proceso tardó en cerrarse." -ForegroundColor Yellow
+    Write-Host "  Advertencia: el proceso tardo en cerrarse." -ForegroundColor Yellow
 } else {
     Write-Host "  [OK] Aplicacion cerrada (PID $targetPid)." -ForegroundColor Green
 }

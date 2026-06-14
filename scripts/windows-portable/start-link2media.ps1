@@ -1,5 +1,5 @@
 # =============================================================================
-# start-link2media.ps1 — Lanzador interno de Link2Media (Windows)
+# start-link2media.ps1 - Lanzador interno de Link2Media (Windows)
 # Invocado por INICIAR_LINK2MEDIA.bat
 # NO ejecutar directamente; usar INICIAR_LINK2MEDIA.bat
 # =============================================================================
@@ -12,7 +12,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# ── Rutas absolutas derivadas de BaseDir ────────────────────────────────────
+# - Rutas absolutas derivadas de BaseDir ------------------
 $NodeExe      = Join-Path $BaseDir 'runtime\node.exe'
 $ServerJs     = Join-Path $BaseDir 'app\server.js'
 $YtdlpExe     = Join-Path $BaseDir 'tools\yt-dlp.exe'
@@ -25,7 +25,7 @@ $PortFile     = Join-Path $BaseDir 'data\link2media.port'
 $ServerLog    = Join-Path $LogDir  'server.log'
 $ErrorLog     = Join-Path $LogDir  'error.log'
 
-# ── Función: log de consola ──────────────────────────────────────────────────
+# - Funcion: log de consola -------------------------
 function Write-Step([string]$msg) {
     Write-Host "  $msg" -ForegroundColor Cyan
 }
@@ -38,10 +38,10 @@ function Write-Err([string]$msg) {
 }
 
 Write-Host ""
-Write-Host "  Link2Media — Iniciando..." -ForegroundColor White
+Write-Host "  Link2Media - Iniciando..." -ForegroundColor White
 Write-Host ""
 
-# ── Verificar archivos obligatorios ─────────────────────────────────────────
+# - Verificar archivos obligatorios ---------------------
 Write-Step "Verificando archivos..."
 $required = @($NodeExe, $ServerJs, $YtdlpExe, $FfmpegExe, $FfprobeExe)
 foreach ($f in $required) {
@@ -57,20 +57,20 @@ foreach ($f in $required) {
 }
 Write-Ok "Archivos verificados"
 
-# ── Crear directorios ────────────────────────────────────────────────────────
+# - Crear directorios ----------------------------
 if (-not (Test-Path $TempDir)) { New-Item -ItemType Directory -Path $TempDir -Force | Out-Null }
 if (-not (Test-Path $LogDir))  { New-Item -ItemType Directory -Path $LogDir  -Force | Out-Null }
 
-# ── Limpiar temporales caducados (>2 horas) ──────────────────────────────────
+# - Limpiar temporales caducados (>2 horas) -----------------
 Write-Step "Limpiando archivos temporales caducados..."
 try {
     $cutoff = (Get-Date).AddHours(-2)
     Get-ChildItem -Path $TempDir -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTime -lt $cutoff } |
         Remove-Item -Force -ErrorAction SilentlyContinue
-} catch { <# no crítico #> }
+} catch { <# no critico #> }
 
-# ── Comprobar instancia existente ────────────────────────────────────────────
+# - Comprobar instancia existente ----------------------
 Write-Step "Comprobando instancias previas..."
 if (Test-Path $PidFile) {
     $existingPid = Get-Content $PidFile -Raw -ErrorAction SilentlyContinue
@@ -96,7 +96,7 @@ if (Test-Path $PidFile) {
     }
 }
 
-# ── Seleccionar puerto libre ──────────────────────────────────────────────────
+# - Seleccionar puerto libre -------------------------
 Write-Step "Buscando puerto disponible..."
 $selectedPort = $null
 foreach ($p in @(3000,3001,3002,3003,3004,3005,3006,3007,3008,3009,3010)) {
@@ -121,7 +121,7 @@ if ($null -eq $selectedPort) {
 }
 Write-Ok "Puerto seleccionado: $selectedPort"
 
-# ── Variables de entorno para el servidor ────────────────────────────────────
+# - Variables de entorno para el servidor ------------------
 $env:NODE_ENV                 = 'production'
 $env:NEXT_TELEMETRY_DISABLED  = '1'
 $env:HOSTNAME                 = '127.0.0.1'
@@ -132,8 +132,9 @@ $env:FFPROBE_BINARY           = $FfprobeExe
 $env:MEDIA_TEMP_DIR           = $TempDir
 $env:MAX_CONCURRENT_JOBS      = '1'
 $env:MAX_ACTIVE_JOBS_PER_CLIENT = '1'
+$env:PATH                     = "$(Split-Path -Parent $FfmpegExe);$env:PATH"
 
-# ── Lanzar servidor en segundo plano ─────────────────────────────────────────
+# - Lanzar servidor en segundo plano ---------------------
 Write-Step "Iniciando servidor (puerto $selectedPort)..."
 
 $procArgs = @{
@@ -159,7 +160,7 @@ try {
 $serverProc.Id | Out-File $PidFile -Encoding ascii -NoNewline
 "$selectedPort"  | Out-File $PortFile -Encoding ascii -NoNewline
 
-# ── Esperar hasta que /api/health responda ────────────────────────────────────
+# - Esperar hasta que /api/health responda ------------------
 Write-Step "Esperando que el servidor arranque..."
 $healthUrl = "http://127.0.0.1:$selectedPort/api/health"
 $maxWaitSec = 60
@@ -210,7 +211,7 @@ if (-not $ready) {
 
 Write-Ok "Servidor listo en http://127.0.0.1:$selectedPort"
 
-# ── Abrir navegador ──────────────────────────────────────────────────────────
+# - Abrir navegador -----------------------------
 Write-Step "Abriendo navegador..."
 Start-Process "http://127.0.0.1:$selectedPort"
 

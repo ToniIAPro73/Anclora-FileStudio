@@ -7,7 +7,7 @@ setlocal EnableDelayedExpansion
 :: Cierra la aplicacion Link2Media de forma segura.
 :: ============================================================================
 
-title Link2Media — Cerrando...
+title Link2Media - Cerrando...
 
 cd /d "%~dp0"
 set "BASE_DIR=%~dp0"

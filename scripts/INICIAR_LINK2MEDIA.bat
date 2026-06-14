@@ -8,21 +8,21 @@ setlocal EnableDelayedExpansion
 :: Haz doble clic para iniciar la aplicacion.
 :: ============================================================================
 
-title Link2Media — Iniciando...
+title Link2Media - Iniciando...
 
-:: ── Cambiar al directorio donde está el .bat ─────────────────────────────────
+:: - Cambiar al directorio donde esta el .bat -----------------
 cd /d "%~dp0"
 set "BASE_DIR=%~dp0"
 :: Eliminar la barra final si existe
 if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
 
 echo.
-echo  ╔══════════════════════════════════════╗
-echo  ║          Link2Media  v0.1.0          ║
-echo  ╚══════════════════════════════════════╝
+echo  ======================================
+echo            Link2Media  v0.1.0
+echo  ======================================
 echo.
 
-:: ── Verificar que se ha extraído el ZIP ──────────────────────────────────────
+:: - Verificar que se ha extraido el ZIP -------------------
 if not exist "%BASE_DIR%\runtime\node.exe" (
     echo  [ERROR] No se puede iniciar Link2Media porque faltan archivos.
     echo.
@@ -63,7 +63,7 @@ if not exist "%BASE_DIR%\tools\ffmpeg\bin\ffmpeg.exe" (
     exit /b 1
 )
 
-:: ── Delegar en PowerShell para la lógica compleja ────────────────────────────
+:: - Delegar en PowerShell para la logica compleja --------------
 set "PS_SCRIPT=%BASE_DIR%\internal\start-link2media.ps1"
 
 if not exist "%PS_SCRIPT%" (

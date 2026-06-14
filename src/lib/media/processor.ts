@@ -33,6 +33,7 @@ export async function processJob(jobId: string) {
       format: job.format,
       quality: job.quality,
       outputPath,
+      ffmpegLocation: path.dirname(CONFIG.media.binaries.ffmpeg),
     });
 
     jobManager.updateJob(jobId, {

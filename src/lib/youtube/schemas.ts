@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const MetadataRequestSchema = z.object({
-  url: z.string().url(),
+  url: z.string().trim().url(),
 });
 
 export const MetadataResponseSchema = z.object({

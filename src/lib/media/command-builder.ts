@@ -3,14 +3,16 @@ export interface ConversionOptions {
   format: "mp3" | "mp4";
   quality: string;
   outputPath: string;
+  ffmpegLocation?: string;
 }
 
 export function buildConversionArgs(options: ConversionOptions): string[] {
-  const { url, format, quality, outputPath } = options;
+  const { url, format, quality, outputPath, ffmpegLocation } = options;
 
   const baseArgs = [
     "--no-playlist",
     "--newline",
+    ...(ffmpegLocation ? ["--ffmpeg-location", ffmpegLocation] : []),
     "--output",
     outputPath,
     "--embed-metadata",

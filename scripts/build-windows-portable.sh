@@ -154,7 +154,11 @@ info "Preparando yt-dlp.exe..."
 resolve_ytdlp_version() {
   curl -fsSL "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest" \
     | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])" 2>/dev/null \
-    || echo "2025.05.22"
+    || find "$CACHE_DIR" -maxdepth 1 -name 'yt-dlp-*.exe' -printf '%f\n' 2>/dev/null \
+      | sed -E 's/^yt-dlp-(.*)\.exe$/\1/' \
+      | sort -V \
+      | tail -1 \
+    || echo "2026.06.09"
 }
 
 if [[ -z "$YTDLP_WINDOWS_VERSION" ]]; then
@@ -484,7 +488,89 @@ else
   ok "No se encontraron binarios Linux en app/"
 fi
 
-# ── 20. Crear el ZIP ──────────────────────────────────────────────────────────
+# ── 20. Materializar symlinks de pnpm para ZIP/Windows ───────────────────────
+info "Materializando enlaces simbólicos de node_modules para Windows..."
+export _APP_DIR="$STAGING_DIR/app"
+python3 - << 'PYEOF'
+import os
+import shutil
+from pathlib import Path
+
+app_dir = Path(os.environ["_APP_DIR"])
+links = [p for p in app_dir.rglob("*") if p.is_symlink()]
+
+# Procesar primero los enlaces más profundos para no perder enlaces anidados.
+for link in sorted(links, key=lambda p: len(p.parts), reverse=True):
+    if not link.is_symlink():
+        continue
+    target = link.resolve(strict=False)
+    if not target.exists():
+        link.unlink()
+        continue
+
+    tmp = link.with_name(f"{link.name}.__materialized__")
+    if tmp.exists():
+        if tmp.is_dir() and not tmp.is_symlink():
+            shutil.rmtree(tmp)
+        else:
+            tmp.unlink()
+
+    if target.is_dir():
+        shutil.copytree(target, tmp, symlinks=False)
+    else:
+        shutil.copy2(target, tmp)
+
+    link.unlink()
+    tmp.rename(link)
+
+remaining = [str(p) for p in app_dir.rglob("*") if p.is_symlink()]
+if remaining:
+    raise SystemExit("Quedan enlaces simbólicos sin materializar:\n" + "\n".join(remaining[:20]))
+
+print(f"  {len(links)} enlaces simbólicos procesados")
+PYEOF
+ok "node_modules materializado sin symlinks"
+
+info "Creando capa node_modules plana para resolución Windows..."
+python3 - << 'PYEOF'
+import os
+import shutil
+from pathlib import Path
+
+app_dir = Path(os.environ["_APP_DIR"])
+node_modules = app_dir / "node_modules"
+pnpm_flat = node_modules / ".pnpm" / "node_modules"
+
+copied = 0
+if pnpm_flat.exists():
+    for entry in pnpm_flat.iterdir():
+        if entry.name.startswith("."):
+            continue
+
+        if entry.name.startswith("@"):
+            scope_dest = node_modules / entry.name
+            scope_dest.mkdir(exist_ok=True)
+            for scoped_pkg in entry.iterdir():
+                dest = scope_dest / scoped_pkg.name
+                if dest.exists():
+                    continue
+                shutil.copytree(scoped_pkg, dest, symlinks=False)
+                copied += 1
+        else:
+            dest = node_modules / entry.name
+            if dest.exists():
+                continue
+            if entry.is_dir():
+                shutil.copytree(entry, dest, symlinks=False)
+            else:
+                shutil.copy2(entry, dest)
+            copied += 1
+
+print(f"  {copied} paquetes copiados a node_modules/")
+PYEOF
+ok "Capa node_modules plana creada"
+
+# ── 21. Crear el ZIP ──────────────────────────────────────────────────────────
 info "Creando ZIP..."
 rm -f "$OUT_ZIP"
 cd "$STAGING_BASE"
@@ -513,17 +599,17 @@ cd "$REPO_ROOT"
 [[ -f "$OUT_ZIP" ]] || die "El ZIP no se creó correctamente"
 ok "ZIP creado: $OUT_ZIP"
 
-# ── 21. Calcular SHA256 ───────────────────────────────────────────────────────
+# ── 22. Calcular SHA256 ───────────────────────────────────────────────────────
 info "Calculando SHA256 del ZIP..."
 ZIP_SHA256="$(sha256sum "$OUT_ZIP" | awk '{print $1}')"
 echo "$ZIP_SHA256  Link2Media-Windows-x64.zip" > "$OUT_SHA"
 ok "SHA256: $ZIP_SHA256"
 
-# ── 22. Copiar INICIAR_LINK2MEDIA.bat a scripts/ ─────────────────────────────
+# ── 23. Copiar INICIAR_LINK2MEDIA.bat a scripts/ ─────────────────────────────
 # (ya existe en scripts/ porque es la fuente canónica)
 ok "INICIAR_LINK2MEDIA.bat ya está en scripts/"
 
-# ── 23. Tamaño final ──────────────────────────────────────────────────────────
+# ── 24. Tamaño final ──────────────────────────────────────────────────────────
 ZIP_SIZE="$(du -sh "$OUT_ZIP" | awk '{print $1}')"
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"

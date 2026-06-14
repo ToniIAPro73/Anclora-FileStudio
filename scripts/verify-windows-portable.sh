@@ -145,17 +145,32 @@ fi
 echo ""
 info "Verificaciones Windows..."
 if command -v cmd.exe >/dev/null 2>&1; then
-  WIN_EXTRACT="$(cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r')"
+  WIN_EXTRACT="$(cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r' | tail -n 1)"
+  WIN_EXTRACT="$(printf '%s' "$WIN_EXTRACT" | tr -d '\n')"
+  if [[ -z "$WIN_EXTRACT" ]]; then
+    WIN_TEMP_WSL="$(printf '%s' "$PATH" | tr ':' '\n' | sed -n 's#^\(/mnt/c/Users/[^/]\+/AppData/Local\)/.*#\1/Temp#p' | head -1)"
+    if [[ -n "$WIN_TEMP_WSL" ]]; then
+      mkdir -p "$WIN_TEMP_WSL"
+      WIN_EXTRACT="$(wslpath -w "$WIN_TEMP_WSL")"
+    fi
+  fi
+  if [[ -z "$WIN_EXTRACT" ]]; then
+    skip "  No se pudo resolver la carpeta TEMP de Windows"
+    exit 0
+  fi
+  WIN_EXTRACT="${WIN_EXTRACT%\\}"
   WIN_TEST_DIR="${WIN_EXTRACT}\\Link2Media-Test-$$"
 
   info "  Copiando a carpeta Windows: $WIN_TEST_DIR"
 
   # Extraer en ruta Windows usando PowerShell
-  WIN_ZIP_PATH="$(wslpath -w "$ZIP_PATH")"
-  WIN_DEST="$(cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r\n')\\Link2Media-Test-$$"
+  WIN_DEST="$WIN_TEST_DIR"
+  WIN_ZIP_LOCAL="${WIN_EXTRACT}\\Link2Media-Windows-x64-$$.zip"
+  WIN_ZIP_LOCAL_WSL="$(wslpath -u "$WIN_ZIP_LOCAL")"
+  cp "$ZIP_PATH" "$WIN_ZIP_LOCAL_WSL"
 
   powershell.exe -NoProfile -NonInteractive -Command "
-    Expand-Archive -Path '$WIN_ZIP_PATH' -DestinationPath '$WIN_DEST' -Force
+    Expand-Archive -Path '$WIN_ZIP_LOCAL' -DestinationPath '$WIN_DEST' -Force
   " 2>/dev/null && {
     ok "  ZIP extraído en Windows: $WIN_DEST"
 
@@ -179,8 +194,12 @@ if command -v cmd.exe >/dev/null 2>&1; then
 
     # Limpiar
     powershell.exe -NoProfile -Command "Remove-Item -Recurse -Force '$WIN_DEST'" 2>/dev/null || true
+    rm -f "$WIN_ZIP_LOCAL_WSL" 2>/dev/null || true
     ok "  Carpeta de prueba Windows limpiada"
-  } || skip "  No se pudo extraer en Windows"
+  } || {
+    rm -f "$WIN_ZIP_LOCAL_WSL" 2>/dev/null || true
+    skip "  No se pudo extraer en Windows"
+  }
 else
   skip "  cmd.exe no disponible — pruebas Windows omitidas"
   skip "  PENDIENTE: extraer el ZIP en Windows y verificar manualmente"

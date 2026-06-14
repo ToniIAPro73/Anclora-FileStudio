@@ -1,5 +1,5 @@
 # =============================================================================
-# update-ytdlp.ps1 — Actualiza yt-dlp.exe de forma segura (Windows)
+# update-ytdlp.ps1 - Actualiza yt-dlp.exe de forma segura (Windows)
 # Invocado por ACTUALIZAR_YTDLP.bat
 # =============================================================================
 [CmdletBinding()]
@@ -18,10 +18,10 @@ $YtdlpNew  = Join-Path $TempDir 'yt-dlp.new.exe'
 $YtdlpBack = Join-Path $TempDir 'yt-dlp.backup.exe'
 
 Write-Host ""
-Write-Host "  Link2Media — Actualizando yt-dlp..." -ForegroundColor White
+Write-Host "  Link2Media - Actualizando yt-dlp..." -ForegroundColor White
 Write-Host ""
 
-# ── Comprobar que no hay conversion activa ────────────────────────────────────
+# - Comprobar que no hay conversion activa ------------------
 if (Test-Path $PidFile) {
     $pidStr = (Get-Content $PidFile -Raw -ErrorAction SilentlyContinue).Trim()
     if ($pidStr -match '^\d+$') {
@@ -37,7 +37,7 @@ if (Test-Path $PidFile) {
     }
 }
 
-# ── Version actual ────────────────────────────────────────────────────────────
+# - Version actual ------------------------------
 $currentVersion = 'desconocida'
 try {
     $currentVersion = (& $YtdlpExe --version 2>&1).Trim()
@@ -46,7 +46,7 @@ try {
     Write-Host "  No se pudo obtener la version actual." -ForegroundColor Yellow
 }
 
-# ── Descargar nueva version ───────────────────────────────────────────────────
+# - Descargar nueva version --------------------------
 Write-Host "  Descargando ultima version de yt-dlp..." -ForegroundColor Cyan
 $downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
 
@@ -70,7 +70,7 @@ if (-not (Test-Path $YtdlpNew) -or (Get-Item $YtdlpNew).Length -lt 1MB) {
     exit 1
 }
 
-# ── Verificar que el nuevo ejecutable responde ────────────────────────────────
+# - Verificar que el nuevo ejecutable responde ----------------
 $newVersion = 'desconocida'
 try {
     $newVersion = (& $YtdlpNew --version 2>&1).Trim()
@@ -82,7 +82,7 @@ try {
     exit 1
 }
 
-# ── Hacer backup y sustituir ──────────────────────────────────────────────────
+# - Hacer backup y sustituir -------------------------
 try {
     Copy-Item $YtdlpExe $YtdlpBack -Force
     Copy-Item $YtdlpNew $YtdlpExe  -Force

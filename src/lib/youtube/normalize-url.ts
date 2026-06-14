@@ -8,7 +8,7 @@ const ALLOWED_HOSTS = [
 
 export function normalizeYoutubeUrl(inputUrl: string): string | null {
   try {
-    const url = new URL(inputUrl);
+    const url = new URL(inputUrl.trim());
     
     // Check protocol
     if (url.protocol !== 'https:') return null;
@@ -20,14 +20,14 @@ export function normalizeYoutubeUrl(inputUrl: string): string | null {
     let videoId: string | null = null;
     
     if (host === 'youtu.be') {
-      videoId = url.pathname.slice(1);
+      videoId = url.pathname.split('/').filter(Boolean)[0] ?? null;
     } else {
       if (url.pathname === '/watch') {
         videoId = url.searchParams.get('v');
       } else if (url.pathname.startsWith('/shorts/')) {
-        videoId = url.pathname.split('/')[2];
+        videoId = url.pathname.split('/').filter(Boolean)[1] ?? null;
       } else if (url.pathname.startsWith('/live/')) {
-        videoId = url.pathname.split('/')[2];
+        videoId = url.pathname.split('/').filter(Boolean)[1] ?? null;
       }
     }
     
