@@ -14,6 +14,7 @@ export async function getVideoMetadata(url: string): Promise<MetadataResponse> {
       "--dump-single-json",
       "--skip-download",
       "--no-playlist",
+      "--no-check-certificates",
       url,
     ];
 

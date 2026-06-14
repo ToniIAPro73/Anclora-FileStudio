@@ -12,6 +12,7 @@ export function buildConversionArgs(options: ConversionOptions): string[] {
   const baseArgs = [
     "--no-playlist",
     "--newline",
+    "--no-check-certificates",
     ...(ffmpegLocation ? ["--ffmpeg-location", ffmpegLocation] : []),
     "--output",
     outputPath,
