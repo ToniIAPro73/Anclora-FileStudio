@@ -21,7 +21,7 @@ const envSchema = z.object({
   RATE_LIMIT_MAX_METADATA_REQUESTS: z.coerce.number().default(10),
   RATE_LIMIT_MAX_JOB_REQUESTS: z.coerce.number().default(3),
   
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
 });
 
 export const env = envSchema.parse(process.env);
