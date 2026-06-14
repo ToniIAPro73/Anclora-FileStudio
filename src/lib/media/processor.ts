@@ -20,14 +20,14 @@ export async function processJob(jobId: string) {
     const safeTitle = sanitizeFilename(metadata.title);
     const extension = job.format === "mp3" ? ".mp3" : ".mp4";
     const finalFileName = `${safeTitle}${extension}`;
-    
+
     const jobDir = path.join(CONFIG.media.tempDir, jobId);
     if (!fs.existsSync(jobDir)) {
       fs.mkdirSync(jobDir, { recursive: true });
     }
-    
+
     const outputPath = path.join(jobDir, `output${extension}`);
-    
+
     const args = buildConversionArgs({
       url,
       format: job.format,
@@ -35,18 +35,20 @@ export async function processJob(jobId: string) {
       outputPath,
     });
 
-    jobManager.updateJob(jobId, { 
-      status: "downloading", 
+    jobManager.updateJob(jobId, {
+      status: "downloading",
       stage: "Descargando y convirtiendo",
       outputFileName: finalFileName,
       outputPath,
     });
 
-    const process = spawn(CONFIG.media.binaries.ytdlp, args, {
+    const proc = spawn(CONFIG.media.binaries.ytdlp, args, {
+      shell: false,
+      windowsHide: true,
       timeout: CONFIG.media.limits.conversionTimeoutSeconds * 1000,
     });
 
-    process.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data) => {
       const line = data.toString();
       const progress = parseProgress(line);
       if (progress !== null) {
@@ -54,25 +56,29 @@ export async function processJob(jobId: string) {
       }
     });
 
-    process.on("close", async (code) => {
+    proc.on("close", async (code) => {
       if (code !== 0) {
-        jobManager.updateJob(jobId, { 
-          status: "failed", 
+        jobManager.updateJob(jobId, {
+          status: "failed",
           error: "Error durante la conversión.",
           stage: "Error",
         });
         return;
       }
 
-      jobManager.updateJob(jobId, { status: "verifying", stage: "Verificando archivo", progress: 100 });
+      jobManager.updateJob(jobId, {
+        status: "verifying",
+        stage: "Verificando archivo",
+        progress: 100,
+      });
 
       try {
         const stats = fs.statSync(outputPath);
         const verification = await verifyFile(outputPath, job.format);
-        
+
         if (!verification.isValid) {
-          jobManager.updateJob(jobId, { 
-            status: "failed", 
+          jobManager.updateJob(jobId, {
+            status: "failed",
             error: "La verificación del archivo ha fallado.",
             stage: "Error",
           });
@@ -81,38 +87,38 @@ export async function processJob(jobId: string) {
 
         const downloadToken = crypto.randomBytes(32).toString("hex");
 
-        jobManager.updateJob(jobId, { 
-          status: "completed", 
+        jobManager.updateJob(jobId, {
+          status: "completed",
           stage: "Completado",
           fileSize: stats.size,
           mimeType: job.format === "mp3" ? "audio/mpeg" : "video/mp4",
           downloadToken,
         });
       } catch {
-        jobManager.updateJob(jobId, { 
-          status: "failed", 
+        jobManager.updateJob(jobId, {
+          status: "failed",
           error: "Error al verificar el archivo final.",
           stage: "Error",
         });
       }
     });
 
-    process.on("error", (err: any) => {
+    proc.on("error", (err: NodeJS.ErrnoException) => {
       let errorMsg = "Error al iniciar el proceso de conversión.";
       if (err.code === "ENOENT") {
-        errorMsg = "Error: Dependencias no encontradas (yt-dlp/ffmpeg). Vercel no es compatible.";
+        errorMsg = "Dependencia no encontrada. Comprueba que yt-dlp y ffmpeg están disponibles.";
       }
-      jobManager.updateJob(jobId, { 
-        status: "failed", 
+      jobManager.updateJob(jobId, {
+        status: "failed",
         error: errorMsg,
         stage: "Error",
       });
     });
-
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error interno del procesador.";
-    jobManager.updateJob(jobId, { 
-      status: "failed", 
+    const message =
+      error instanceof Error ? error.message : "Error interno del procesador.";
+    jobManager.updateJob(jobId, {
+      status: "failed",
       error: message,
       stage: "Error",
     });

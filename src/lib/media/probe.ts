@@ -16,25 +16,33 @@ interface FfprobeData {
   streams: FfprobeStream[];
 }
 
-export async function verifyFile(filePath: string, format: "mp3" | "mp4"): Promise<VerificationResult> {
+export async function verifyFile(
+  filePath: string,
+  format: "mp3" | "mp4"
+): Promise<VerificationResult> {
   return new Promise((resolve) => {
     const args = [
-      "-v", "quiet",
-      "-print_format", "json",
+      "-v",
+      "quiet",
+      "-print_format",
+      "json",
       "-show_streams",
       "-show_format",
       filePath,
     ];
 
-    const process = spawn(CONFIG.media.binaries.ffprobe, args);
+    const proc = spawn(CONFIG.media.binaries.ffprobe, args, {
+      shell: false,
+      windowsHide: true,
+    });
 
     let stdout = "";
 
-    process.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data) => {
       stdout += data.toString();
     });
 
-    process.on("close", (code) => {
+    proc.on("close", (code) => {
       if (code !== 0) {
         return resolve({ isValid: false, hasAudio: false, hasVideo: false });
       }
@@ -52,6 +60,10 @@ export async function verifyFile(filePath: string, format: "mp3" | "mp4"): Promi
       } catch {
         resolve({ isValid: false, hasAudio: false, hasVideo: false });
       }
+    });
+
+    proc.on("error", () => {
+      resolve({ isValid: false, hasAudio: false, hasVideo: false });
     });
   });
 }

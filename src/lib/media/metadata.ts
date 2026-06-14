@@ -17,36 +17,50 @@ export async function getVideoMetadata(url: string): Promise<MetadataResponse> {
       url,
     ];
 
-    const process = spawn(CONFIG.media.binaries.ytdlp, args, {
+    const proc = spawn(CONFIG.media.binaries.ytdlp, args, {
+      shell: false,
+      windowsHide: true,
       timeout: CONFIG.media.limits.metadataTimeoutSeconds * 1000,
     });
 
     let stdout = "";
     let stderr = "";
 
-    process.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data) => {
       stdout += data.toString();
     });
 
-    process.stderr.on("data", (data) => {
+    proc.stderr.on("data", (data) => {
       stderr += data.toString();
     });
 
-    process.on("close", (code) => {
+    proc.on("close", (code) => {
       if (code !== 0) {
         console.error(`yt-dlp error (code ${code}):`, stderr);
         if (stderr.includes("Video unavailable")) {
-          return reject(new AppError(ERROR_CODES.VIDEO_UNAVAILABLE, "El vídeo no está disponible."));
+          return reject(
+            new AppError(ERROR_CODES.VIDEO_UNAVAILABLE, "El vídeo no está disponible.")
+          );
         }
-        return reject(new AppError(ERROR_CODES.INTERNAL_ERROR, "Error al obtener metadatos del vídeo."));
+        return reject(
+          new AppError(
+            ERROR_CODES.INTERNAL_ERROR,
+            "Error al obtener metadatos del vídeo."
+          )
+        );
       }
 
       try {
         const data = JSON.parse(stdout);
-        
+
         const durationSeconds = data.duration || 0;
         if (durationSeconds > CONFIG.media.limits.maxDurationSeconds) {
-          return reject(new AppError(ERROR_CODES.DURATION_LIMIT_EXCEEDED, "El vídeo excede la duración máxima permitida."));
+          return reject(
+            new AppError(
+              ERROR_CODES.DURATION_LIMIT_EXCEEDED,
+              "El vídeo excede la duración máxima permitida."
+            )
+          );
         }
 
         const formats = (data.formats || []) as YtdlpFormat[];
@@ -69,15 +83,28 @@ export async function getVideoMetadata(url: string): Promise<MetadataResponse> {
           supported: true,
         });
       } catch {
-        reject(new AppError(ERROR_CODES.INTERNAL_ERROR, "Error al procesar la respuesta de metadatos."));
+        reject(
+          new AppError(
+            ERROR_CODES.INTERNAL_ERROR,
+            "Error al procesar la respuesta de metadatos."
+          )
+        );
       }
     });
 
-    process.on("error", (err: any) => {
+    proc.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "ENOENT") {
-        reject(new AppError(ERROR_CODES.DEPENDENCY_MISSING, ERROR_MESSAGES.DEPENDENCY_MISSING, 500));
+        reject(
+          new AppError(
+            ERROR_CODES.DEPENDENCY_MISSING,
+            ERROR_MESSAGES.DEPENDENCY_MISSING,
+            500
+          )
+        );
       } else {
-        reject(new AppError(ERROR_CODES.INTERNAL_ERROR, "Error al ejecutar yt-dlp.", 500));
+        reject(
+          new AppError(ERROR_CODES.INTERNAL_ERROR, "Error al ejecutar yt-dlp.", 500)
+        );
       }
     });
   });

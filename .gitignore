@@ -42,3 +42,9 @@ next-env.d.ts
 
 # tmp
 .tmp/
+
+# Windows portable distribution — build cache, staging, and output artifacts
+scripts/.cache/
+scripts/.staging/
+scripts/Link2Media-Windows-x64.zip
+scripts/Link2Media-Windows-x64.zip.sha256
