@@ -6,27 +6,15 @@ import { CONFIG } from "@/lib/config";
 import { sanitizeFilename } from "@/lib/security/sanitize-filename";
 import { ensurePathSafety } from "@/lib/security/path-safety";
 import { buildDescriptor } from "@/lib/detection/file-detector";
+import { ALL_ALLOWED_EXTENSIONS, FORMAT_BY_EXTENSION } from "@/lib/domain/format-catalog";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
-// Media types go through legacy ffprobe path; all others use universal detector
+/** Extensions that route through the legacy ffprobe path */
 const MEDIA_EXTENSIONS = new Set(["mp3", "m4a", "wav", "flac", "ogg", "aac", "mp4", "webm", "mkv", "avi", "mov", "wmv", "ts"]);
-const UNIVERSAL_EXTENSIONS = new Set([
-  // Images
-  "jpg", "jpeg", "png", "webp", "avif", "tiff", "tif", "gif",
-  // PDF
-  "pdf",
-  // Archives
-  "zip", "7z", "tar", "gz", "bz2", "xz",
-  // Structured data
-  "json", "yaml", "yml", "toml", "xml", "csv", "tsv",
-  // Plain text
-  "md", "txt", "html", "htm",
-]);
-const ALL_ALLOWED_EXTENSIONS = new Set([...MEDIA_EXTENSIONS, ...UNIVERSAL_EXTENSIONS]);
 
 /** Analyze a remote YouTube URL or an uploaded file */
 export async function POST(req: NextRequest) {
@@ -109,6 +97,7 @@ async function handleFileUpload(req: NextRequest): Promise<NextResponse> {
   const originalName = file.name;
   const ext = originalName.split(".").pop()?.toLowerCase() ?? "";
 
+  // Use the format catalog as the single source of truth for allowed extensions
   if (!ALL_ALLOWED_EXTENSIONS.has(ext)) {
     return NextResponse.json(
       { error: `Formato no soportado: .${ext}`, code: "UNSUPPORTED_INPUT" },
@@ -128,8 +117,12 @@ async function handleFileUpload(req: NextRequest): Promise<NextResponse> {
   const bytes = await file.arrayBuffer();
   fs.writeFileSync(storedPath, Buffer.from(bytes));
 
-  // Route to appropriate analyzer based on extension
-  if (MEDIA_EXTENSIONS.has(ext)) {
+  // Route to appropriate analyzer: media extensions go through ffprobe,
+  // all others (universal) go through the file-detector
+  const formatDef = FORMAT_BY_EXTENSION.get(ext);
+  const isMedia = formatDef?.category === "audio" || formatDef?.category === "video" || MEDIA_EXTENSIONS.has(ext);
+
+  if (isMedia) {
     return handleMediaFile(storedPath, originalName, uploadId, file.size);
   }
   return handleUniversalFile(storedPath, originalName, uploadId, file.size);
