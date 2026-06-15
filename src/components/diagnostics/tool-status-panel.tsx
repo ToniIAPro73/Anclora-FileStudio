@@ -82,16 +82,16 @@ export function ToolStatusPanel() {
           onClick={() => refresh()}
           disabled={loading}
           aria-label="Actualizar diagnóstico"
-          className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1 disabled:opacity-50"
+          className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1 min-h-[44px] disabled:opacity-50 motion-reduce:transition-none"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 motion-reduce:animate-none ${loading ? "animate-spin" : ""}`} />
           Verificar
         </button>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-8 text-white/30">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
         </div>
       ) : !data ? (
         <div className="text-sm text-red-400 py-4 text-center">

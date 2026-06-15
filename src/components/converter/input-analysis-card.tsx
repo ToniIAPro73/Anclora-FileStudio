@@ -87,7 +87,7 @@ function UniversalFileCard({ result, onReset }: { result: UniversalAnalysisResul
             type="button"
             onClick={onReset}
             aria-label="Resetear entrada"
-            className="shrink-0 rounded-lg p-1.5 text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors"
+            className="shrink-0 rounded-lg p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors motion-reduce:transition-none"
           >
             <X className="h-4 w-4" />
           </button>
@@ -247,7 +247,7 @@ function MediaFileCard({ result, onReset }: { result: Extract<AnalysisResult, { 
             type="button"
             onClick={onReset}
             aria-label="Resetear entrada"
-            className="shrink-0 rounded-lg p-1.5 text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors"
+            className="shrink-0 rounded-lg p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors motion-reduce:transition-none"
           >
             <X className="h-4 w-4" />
           </button>

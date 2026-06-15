@@ -220,7 +220,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
           type="button"
           onClick={() => setTab("url")}
           aria-label="Introducir un enlace URL"
-          className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 motion-reduce:transition-none ${
             tab === "url" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
           }`}
         >
@@ -231,7 +231,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
           type="button"
           onClick={() => setTab("file")}
           aria-label="Subir un archivo local"
-          className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 motion-reduce:transition-none ${
             tab === "file" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
           }`}
         >
@@ -253,7 +253,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://youtube.com/watch?v=..."
-              className="w-full rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/40"
+              className="w-full rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 px-4 py-3 min-h-[44px] text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/40"
               autoComplete="off"
               disabled={isLoading}
               aria-label="URL de YouTube"
@@ -262,7 +262,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
           <button
             type="submit"
             disabled={!urlInput.trim() || isLoading}
-            className="w-full h-12 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full h-12 min-h-[44px] rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 motion-reduce:transition-none"
           >
             {isLoading ? (
               <>
@@ -291,13 +291,13 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
             aria-label="Arrastra un archivo o haz clic para seleccionar audio, vídeo, imágenes, documentos, datos y más"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
-            className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${dragBorderClass} ${
+            className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 motion-reduce:transition-none ${dragBorderClass} ${
               isLoading ? "pointer-events-none opacity-50" : ""
             }`}
           >
             {isLoading ? (
               <div className="flex flex-col items-center gap-3 text-white/60">
-                <Loader2 className="h-8 w-8 animate-spin" />
+                <Loader2 className="h-8 w-8 animate-spin motion-reduce:animate-none" />
                 <span className="text-sm">Analizando archivo...</span>
               </div>
             ) : (

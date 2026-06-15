@@ -115,7 +115,7 @@ function CapabilityCard({
         role="option"
         aria-selected={isSelected}
         disabled={!isAvailable}
-        className="w-full text-left p-4 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 rounded-xl disabled:cursor-not-allowed"
+        className="w-full text-left p-3 sm:p-4 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 rounded-xl disabled:cursor-not-allowed motion-reduce:transition-none"
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">

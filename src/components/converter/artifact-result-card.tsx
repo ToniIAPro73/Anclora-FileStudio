@@ -49,7 +49,7 @@ export function ArtifactResultCard({ jobId, fileName, format, sizeBytes, downloa
   };
 
   return (
-    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-400">
+    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-400 motion-reduce:animate-none">
       <div className="flex items-start gap-3">
         <div className="h-10 w-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
           <Download className="h-5 w-5 text-emerald-400" aria-hidden="true" />
@@ -72,11 +72,11 @@ export function ArtifactResultCard({ jobId, fileName, format, sizeBytes, downloa
             type="button"
             onClick={() => void handleDownload()}
             disabled={fetching}
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors disabled:opacity-60"
+            className="flex items-center justify-center gap-2 w-full h-12 min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors disabled:opacity-60 motion-reduce:transition-none"
           >
             {fetching ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 Preparando descarga...
               </>
             ) : (
@@ -94,7 +94,7 @@ export function ArtifactResultCard({ jobId, fileName, format, sizeBytes, downloa
           <button
             type="button"
             onClick={onReset}
-            className="flex-1 flex items-center justify-center gap-1.5 h-10 rounded-xl border border-white/10 text-white/50 hover:text-white/80 hover:border-white/25 text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl border border-white/10 text-white/50 hover:text-white/80 hover:border-white/25 text-sm transition-colors motion-reduce:transition-none"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Nueva conversión
@@ -102,7 +102,7 @@ export function ArtifactResultCard({ jobId, fileName, format, sizeBytes, downloa
           <button
             type="button"
             onClick={onViewHistory}
-            className="flex-1 flex items-center justify-center gap-1.5 h-10 rounded-xl border border-white/10 text-white/50 hover:text-white/80 hover:border-white/25 text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl border border-white/10 text-white/50 hover:text-white/80 hover:border-white/25 text-sm transition-colors motion-reduce:transition-none"
           >
             <History className="h-3.5 w-3.5" />
             Historial

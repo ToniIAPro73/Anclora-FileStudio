@@ -135,7 +135,7 @@ export function JobHistory() {
         <button
           type="button"
           onClick={() => refresh()}
-          className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1"
+          className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1 min-h-[44px] motion-reduce:transition-none"
         >
           <RotateCcw className="h-3 w-3" />
           Actualizar
@@ -149,7 +149,7 @@ export function JobHistory() {
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+            className={`px-3 py-1.5 min-h-[44px] rounded-lg text-xs transition-colors motion-reduce:transition-none ${
               filter === f ? "bg-white/15 text-white" : "text-white/40 hover:text-white/70"
             }`}
           >
@@ -160,7 +160,7 @@ export function JobHistory() {
 
       {loading ? (
         <div className="flex items-center justify-center py-10 text-white/30">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-white/25 text-sm">

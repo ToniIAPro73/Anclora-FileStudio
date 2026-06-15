@@ -101,8 +101,8 @@ export function FormatSelector({ format, onFormatChange, options }: FormatSelect
               type="button"
               onClick={() => onFormatChange(opt.value)}
               className={cn(
-                "relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 overflow-hidden flex-shrink-0",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20",
+                "relative flex items-center gap-3 px-3 sm:px-4 py-3 min-h-[44px] rounded-xl transition-all duration-300 overflow-hidden flex-shrink-0",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 motion-reduce:transition-none",
                 isActive
                   ? [g.bg, "border", g.border]
                   : "border border-transparent hover:bg-white/[0.04] text-white/35 hover:text-white/60"
@@ -152,7 +152,7 @@ export function FormatSelector({ format, onFormatChange, options }: FormatSelect
               {isActive && (
                 <div className="ml-auto flex-shrink-0 flex items-center gap-1.5">
                   <span
-                    className={cn("block h-2 w-2 rounded-full animate-pulse", lossDot)}
+                    className={cn("block h-2 w-2 rounded-full animate-pulse motion-reduce:animate-none", lossDot)}
                     title={opt.lossProfile}
                   />
                 </div>

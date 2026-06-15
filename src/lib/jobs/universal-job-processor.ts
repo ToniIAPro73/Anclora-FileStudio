@@ -13,18 +13,9 @@ import { CONFIG } from "../config";
 import { ensurePathSafety } from "../security/path-safety";
 import { sanitizeFilename } from "../security/sanitize-filename";
 import { FORMAT_BY_EXTENSION, MIME_TO_FORMAT } from "../domain/format-catalog";
-
-// ── Errors ────────────────────────────────────────────────────────────────────
-
-class JobProcessingError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string
-  ) {
-    super(message);
-    this.name = "JobProcessingError";
-  }
-}
+import { createAppError, type AppError, type ErrorCode } from "../errors/error-codes";
+import { checkDiskSpace } from "./disk-space-check";
+import { coordinatedCleanup } from "./coordinated-cleanup";
 
 // ── Magic bytes table for output validation ──────────────────────────────────
 
@@ -122,11 +113,11 @@ export async function processUniversalJob(jobId: string): Promise<void> {
     // 1. Recover job from DB
     const job = jobManager.getJob(jobId);
     if (!job) {
-      throw new JobProcessingError("JOB_NOT_FOUND", `Job ${jobId} not found`);
+      throw createAppError("JOB_NOT_FOUND", `Job ${jobId} not found`, { stage: "recovery" });
     }
 
     if (job.status !== "queued") {
-      throw new JobProcessingError("INVALID_STATE", `Job ${jobId} is not queued (status: ${job.status})`);
+      throw createAppError("INVALID_STATE", `Job ${jobId} is not queued (status: ${job.status})`, { stage: "recovery" });
     }
 
     log.push(`[universal-job] Starting job ${jobId}`);
@@ -134,27 +125,37 @@ export async function processUniversalJob(jobId: string): Promise<void> {
     // 2. Get input file path
     const inputPath = resolveInputPath(job.input_reference, job.input_kind);
     if (!fs.existsSync(inputPath)) {
-      throw new JobProcessingError("INPUT_NOT_FOUND", `Input file not found at ${redact(inputPath)}`);
+      throw createAppError("INPUT_NOT_FOUND", `Input file not found`, {
+        stage: "recovery",
+        technicalDetail: `Input not found at ${redact(inputPath)}`,
+      });
     }
 
     // 3. Re-validate capability against the engine registry
     const conversionId = job.conversion_id;
     if (!conversionId) {
-      throw new JobProcessingError("MISSING_CONVERSION_ID", `Job ${jobId} has no conversion_id`);
+      throw createAppError("MISSING_CONVERSION_ID", `Job ${jobId} has no conversion_id`, { stage: "recovery" });
     }
 
     // 4. Resolve engine from the registry via conversion_id
-    // The conversion_id contains the engine id prefix (e.g., "sharp-image-xxx-yyy")
     const engineId = extractEngineIdFromConversionId(conversionId);
     const engine = getEngine(engineId);
     if (!engine) {
-      throw new JobProcessingError("ENGINE_NOT_FOUND", `Engine ${engineId} not found for capability ${conversionId}`);
+      throw createAppError("ENGINE_NOT_FOUND", `Engine not found for capability`, {
+        stage: "engine-resolution",
+        engineId,
+        technicalDetail: `Engine ${engineId} not found for capability ${conversionId}`,
+      });
     }
 
     // Probe the engine to ensure it's available
     const probeResult = await engine.probe();
     if (!probeResult.available) {
-      throw new JobProcessingError("ENGINE_UNAVAILABLE", `Engine ${engineId} is not available: ${probeResult.error ?? "unknown error"}`);
+      throw createAppError("ENGINE_UNAVAILABLE", `Engine is not available`, {
+        stage: "engine-resolution",
+        engineId,
+        technicalDetail: probeResult.error ?? "unknown error",
+      });
     }
 
     log.push(`[universal-job] Engine: ${engineId} v${probeResult.version ?? "unknown"}`);
@@ -168,7 +169,19 @@ export async function processUniversalJob(jobId: string): Promise<void> {
       engine_id: engineId,
     });
 
-    // 5. Create isolated working directory
+    // 5. Check disk space before starting large conversions
+    const inputStat = fs.statSync(inputPath);
+    // Estimate output as 2x input size as a safety margin
+    const estimatedRequired = inputStat.size * 2;
+    const diskCheck = await checkDiskSpace(estimatedRequired, CONFIG.media.tempDir);
+    if (!diskCheck.sufficient) {
+      throw createAppError("INSUFFICIENT_DISK_SPACE", diskCheck.message, {
+        stage: "pre-execution",
+        engineId,
+      });
+    }
+
+    // 6. Create isolated working directory
     const jobDir = path.join(CONFIG.media.tempDir, jobId);
     if (!fs.existsSync(jobDir)) {
       fs.mkdirSync(jobDir, { recursive: true });
@@ -182,10 +195,14 @@ export async function processUniversalJob(jobId: string): Promise<void> {
     try {
       ensurePathSafety(outputPath);
     } catch (err) {
-      throw new JobProcessingError("UNSAFE_PATH", `Output path safety check failed: ${String(err)}`);
+      throw createAppError("UNSAFE_PATH", `Output path safety check failed`, {
+        stage: "pre-execution",
+        engineId,
+        technicalDetail: String(err),
+      });
     }
 
-    // 6. Build execution plan
+    // 7. Build execution plan
     const plan: ConversionPlan = {
       jobId,
       engineId: engine.id,
@@ -197,10 +214,10 @@ export async function processUniversalJob(jobId: string): Promise<void> {
       args: [],
       env: {},
       timeoutMs: CONFIG.media.limits.conversionTimeoutSeconds * 1000,
-      estimatedSizeBytes: null,
+      estimatedSizeBytes: estimatedRequired,
     };
 
-    // 7. Execute the engine with progress and cancellation support
+    // 8. Execute the engine with progress and cancellation support
     const onProgress = (progress: number, stage: string) => {
       // Clamp progress to 5–90 range (validation occupies 90–100)
       const clampedProgress = Math.min(Math.max(progress, 5), 90);
@@ -214,16 +231,25 @@ export async function processUniversalJob(jobId: string): Promise<void> {
     try {
       result = await engine.execute(plan, onProgress);
     } catch (err) {
-      throw new JobProcessingError("ENGINE_EXECUTE_FAILED", `Engine execution failed: ${redact(String(err))}`);
+      throw createAppError("ENGINE_EXECUTE_FAILED", `Engine execution failed`, {
+        stage: "execution",
+        engineId,
+        technicalDetail: redact(String(err)),
+        cause: err instanceof Error ? err : undefined,
+      });
     }
 
     if (!result.success) {
-      throw new JobProcessingError("ENGINE_EXECUTE_FAILED", `Engine execution failed: ${redact(result.error ?? "unknown error")}`);
+      throw createAppError("ENGINE_EXECUTE_FAILED", `Engine execution failed`, {
+        stage: "execution",
+        engineId,
+        technicalDetail: redact(result.error ?? "unknown error"),
+      });
     }
 
     log.push(`[universal-job] Execution completed in ${result.durationMs}ms, output size: ${result.outputSizeBytes} bytes`);
 
-    // 8. Validate the output artifact
+    // 9. Validate the output artifact
     jobManager.updateJob(jobId, {
       status: "verifying",
       stage: "Verificando archivo de salida",
@@ -236,24 +262,26 @@ export async function processUniversalJob(jobId: string): Promise<void> {
         .filter((c) => !c.passed)
         .map((c) => `${c.name}: ${c.detail ?? "failed"}`)
         .join("; ");
-      throw new JobProcessingError(
-        "VALIDATION_FAILED",
-        `Output validation failed: ${failedChecks}`
-      );
+      throw createAppError("VALIDATION_FAILED", `Output validation failed`, {
+        stage: "validation",
+        engineId,
+        technicalDetail: failedChecks,
+      });
     }
 
     // Additional deep validation: check magic bytes, MIME, size
     const deepValidation = validateOutputArtifact(outputPath, outputFormat);
     if (!deepValidation.valid) {
-      throw new JobProcessingError(
-        "VALIDATION_FAILED",
-        `Deep validation failed: ${deepValidation.error ?? "unknown"}`
-      );
+      throw createAppError("ARTIFACT_VALIDATION_FAILED", `Deep validation failed`, {
+        stage: "validation",
+        engineId,
+        technicalDetail: deepValidation.error ?? "unknown",
+      });
     }
 
     log.push(`[universal-job] Validation passed`);
 
-    // 9. Persist metadata
+    // 10. Persist metadata
     const outputMime = getOutputMimeType(outputFormat);
     const inputFormat = job.input_format ?? path.extname(inputPath).replace(".", "").toLowerCase() ?? "unknown";
     const inputMimeType = job.input_mime_type ?? "application/octet-stream";
@@ -264,7 +292,7 @@ export async function processUniversalJob(jobId: string): Promise<void> {
     // Determine category from format catalog
     const category = (FORMAT_BY_EXTENSION.get(outputFormat)?.category ?? "unknown") as FileCategory;
 
-    // 10. Create download token
+    // 11. Create download token
     const token = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
@@ -278,7 +306,7 @@ export async function processUniversalJob(jobId: string): Promise<void> {
       : `output_${jobId.substring(0, 8)}`;
     const finalFileName = `${titleBase}${outputExt}`;
 
-    // 11. Update job to completed — ONLY after validation
+    // 12. Update job to completed — ONLY after validation
     jobManager.updateJob(jobId, {
       status: "completed",
       stage: "Completado",
@@ -307,13 +335,22 @@ export async function processUniversalJob(jobId: string): Promise<void> {
 
     log.push(`[universal-job] Job ${jobId} completed successfully`);
 
-    // 12. Log redacted messages
+    // 13. Trigger coordinated cleanup reference (async, non-blocking)
+    // This will clean up expired jobs and orphaned files on the next interval
+    // We don't await this to avoid blocking the job completion response
+    coordinatedCleanup().catch((err) => {
+      console.error("[universal-job] Post-job cleanup error:", redact(String(err)));
+    });
+
+    // 14. Log redacted messages
     for (const msg of log) {
       console.log(redact(msg));
     }
   } catch (error: unknown) {
-    const code = error instanceof JobProcessingError ? error.code : "INTERNAL_ERROR";
+    const appError = error as AppError;
+    const code: ErrorCode = appError?.code ?? "ENGINE_EXECUTE_FAILED";
     const message = error instanceof Error ? error.message : "Error interno del procesador.";
+    const stage = appError?.stage ?? "unknown";
 
     jobManager.updateJob(jobId, {
       status: "failed",
@@ -322,7 +359,7 @@ export async function processUniversalJob(jobId: string): Promise<void> {
       stage: "Error",
     });
 
-    log.push(`[universal-job] Job ${jobId} failed: ${redact(message)}`);
+    log.push(`[universal-job] Job ${jobId} failed at stage "${stage}": ${redact(message)} [code=${code}]`);
     for (const msg of log) {
       console.log(redact(msg));
     }
