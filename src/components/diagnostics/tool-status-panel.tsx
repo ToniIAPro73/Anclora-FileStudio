@@ -26,7 +26,7 @@ interface HealthData {
 
 function ToolRow({ dep }: { dep: HealthDependency }) {
   return (
-    <div className="flex items-start justify-between py-2.5 border-b border-white/5 last:border-0 gap-3">
+    <div className="flex items-start justify-between gap-3 border-b border-white/7 py-3 last:border-0">
       <div className="flex items-start gap-2.5 min-w-0">
         {dep.available ? (
           <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
@@ -34,15 +34,15 @@ function ToolRow({ dep }: { dep: HealthDependency }) {
           <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" aria-hidden="true" />
         )}
         <div className="min-w-0">
-          <span className="text-sm text-white/80">{dep.name}</span>
+          <span className="text-sm font-semibold text-stone-100">{dep.name}</span>
           {!dep.available && dep.recommendedAction && (
-            <p className="text-[10px] text-amber-400/80 mt-0.5 leading-tight">
+            <p className="mt-0.5 text-[10px] leading-tight text-amber-200/80">
               {dep.recommendedAction}
             </p>
           )}
         </div>
       </div>
-      <span className={`text-xs font-mono shrink-0 ${dep.available ? "text-white/40" : "text-red-400"}`}>
+      <span className={`shrink-0 font-mono text-xs ${dep.available ? "text-stone-500" : "text-rose-300"}`}>
         {dep.version ?? (dep.available ? "✓" : "✗")}
       </span>
     </div>
@@ -76,13 +76,13 @@ export function ToolStatusPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-white">Diagnóstico</h2>
+        <h2 className="text-base font-bold text-stone-100">Diagnóstico</h2>
         <button
           type="button"
           onClick={() => refresh()}
           disabled={loading}
           aria-label="Actualizar diagnóstico"
-          className="text-xs text-white/40 hover:text-white/70 flex items-center gap-1 min-h-[44px] disabled:opacity-50 motion-reduce:transition-none"
+          className="flex min-h-[44px] items-center gap-1 text-xs font-semibold text-stone-500 hover:text-stone-100 disabled:opacity-50 motion-reduce:transition-none"
         >
           <RefreshCw className={`h-3.5 w-3.5 motion-reduce:animate-none ${loading ? "animate-spin" : ""}`} />
           Verificar
@@ -90,22 +90,22 @@ export function ToolStatusPanel() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-8 text-white/30">
+        <div className="flex items-center justify-center py-8 text-stone-500">
           <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
         </div>
       ) : !data ? (
-        <div className="text-sm text-red-400 py-4 text-center">
+        <div className="py-4 text-center text-sm text-rose-300">
           No se pudo conectar al servidor de diagnóstico.
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-white/10 bg-white/3 p-4">
+          <div className="rounded-[18px] border border-white/10 bg-[#111419]/88 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
             {/* Overall status */}
             <div
               className={`rounded-lg px-3 py-2 mb-4 text-sm flex items-center gap-2 ${
                 data.ok
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  : "bg-red-500/10 text-red-400 border border-red-500/20"
+                  ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+                  : "border border-amber-300/20 bg-amber-400/10 text-amber-200"
               }`}
             >
               {data.ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
@@ -117,10 +117,10 @@ export function ToolStatusPanel() {
             </div>
 
             {/* Summary */}
-            <div className="flex gap-4 mb-4 text-xs text-white/40">
+            <div className="mb-4 flex gap-4 text-xs text-stone-500">
               <span>{data.summary.available}/{data.summary.total} disponibles</span>
               {data.summary.missing > 0 && (
-                <span className="text-amber-400">{data.summary.missing} no disponibles</span>
+                <span className="text-amber-200">{data.summary.missing} no disponibles</span>
               )}
             </div>
 
@@ -134,9 +134,9 @@ export function ToolStatusPanel() {
 
           {/* Missing tools recommendations */}
           {data.summary.missing > 0 && (
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-400 space-y-1.5">
+            <div className="space-y-1.5 rounded-[18px] border border-amber-300/18 bg-amber-400/8 p-4 text-sm text-amber-200">
               <p className="font-medium">¿Cómo solucionar esto?</p>
-              <ul className="space-y-1 text-xs text-amber-400/80">
+              <ul className="space-y-1 text-xs text-amber-100/75">
                 {data.dependencies
                   .filter((d) => !d.available && d.recommendedAction)
                   .map((d) => (

@@ -107,12 +107,15 @@ export async function GET() {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const ENGINE_DISPLAY_NAMES: Record<string, string> = {
+  "ffmpeg-media": "FFmpeg Engine",
   "sharp-image": "Sharp (Node.js)",
   "data-ts": "Data Engine (Node.js)",
   "qpdf": "QPDF",
   "sevenzip": "7-Zip",
   "pandoc": "Pandoc",
   "libreoffice": "LibreOffice",
+  "calibre": "Calibre",
+  "tesseract": "Tesseract OCR",
 };
 
 function getRecommendedAction(
@@ -130,6 +133,9 @@ function getRecommendedAction(
     "sevenzip": "Instala 7-Zip: 7-zip.org o usa el paquete portable",
     "pandoc": "Instala Pandoc: pandoc.org o usa el paquete portable",
     "libreoffice": "Instala LibreOffice: libreoffice.org o usa el paquete portable",
+    "ffmpeg-media": "Instala FFmpeg/FFprobe o usa el paquete portable",
+    "calibre": "Instala Calibre o usa el paquete portable completo",
+    "tesseract": "Instala Tesseract OCR o usa el paquete portable completo",
   };
 
   return actions[engineId] ?? null;

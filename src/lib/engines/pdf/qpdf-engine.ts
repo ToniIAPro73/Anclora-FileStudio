@@ -17,8 +17,13 @@ const ENGINE_ID: EngineId = "qpdf";
 function findQpdfBinary(): string {
   const envPath = CONFIG.media.binaries.qpdf;
   if (envPath && envPath !== "qpdf") return envPath;
-  const portablePath = path.resolve(process.cwd(), "tools", "qpdf", "bin", "qpdf.exe");
-  if (fs.existsSync(portablePath)) return portablePath;
+  const portablePaths = [
+    path.resolve(process.cwd(), "tools", "qpdf", "qpdf.exe"),
+    path.resolve(process.cwd(), "tools", "qpdf", "bin", "qpdf.exe"),
+  ];
+  for (const portablePath of portablePaths) {
+    if (fs.existsSync(portablePath)) return portablePath;
+  }
   return "qpdf";
 }
 

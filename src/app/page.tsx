@@ -215,43 +215,54 @@ export default function Home() {
   const needsRights = analysisResult?.kind === "remote-url";
 
   return (
-    <div lang="es" className="min-h-screen bg-[#0a0a0c] text-white">
+    <div lang="es" className="min-h-screen overflow-hidden bg-[#0d0f12] text-[#f4f1ea]">
       <Toaster position="top-center" richColors />
 
-      {/* Radial gradient background */}
       <div
-        className="fixed inset-0 pointer-events-none"
+        className="fixed inset-0 pointer-events-none opacity-95"
         style={{
-          background: "radial-gradient(circle at 50% 0%, rgba(20,40,60,0.35) 0%, transparent 55%)",
+          background:
+            "radial-gradient(circle at 18% 4%, rgba(13,148,136,0.22) 0%, transparent 34%), radial-gradient(circle at 82% 0%, rgba(198,132,38,0.16) 0%, transparent 28%), linear-gradient(180deg, #12161b 0%, #08090b 72%)",
+        }}
+        aria-hidden="true"
+      />
+      <div
+        className="fixed inset-0 pointer-events-none opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px)",
+          backgroundSize: "42px 42px",
         }}
         aria-hidden="true"
       />
 
-      {/* App shell */}
-      <div className="relative max-w-2xl mx-auto px-4 pb-24">
-        {/* Header */}
-        <header className="text-center pt-12 pb-8">
-          <div className="inline-flex items-center gap-2.5 mb-5">
-            <div className="h-10 w-10 rounded-xl bg-linear-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+      <div className="relative mx-auto max-w-3xl px-4 pb-24 sm:px-6">
+        <header className="pt-10 pb-8 sm:pt-14">
+          <div className="mb-5 inline-flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] border border-teal-300/25 bg-teal-400/15 shadow-[0_18px_50px_rgba(20,184,166,0.16)]">
               <svg viewBox="0 0 24 24" className="h-5 w-5 text-white fill-current" aria-hidden="true">
                 <path d="M10 15.5v-7l6 3.5-6 3.5z" />
                 <path fillRule="evenodd" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM5 12a7 7 0 1014 0 7 7 0 00-14 0z" />
               </svg>
             </div>
-            <span className="text-xl font-bold tracking-tight">Link2Media</span>
+            <div className="text-left">
+              <span className="block text-xl font-semibold tracking-tight">Link2Media</span>
+              <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-teal-200/55">
+                Portable local
+              </span>
+            </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
-            Conversor <span className="text-cyan-400">universal local</span>
+          <h1 className="max-w-2xl text-balance text-4xl font-black leading-[0.95] tracking-tight sm:text-6xl">
+            Conversor universal <span className="text-teal-300">local</span>
           </h1>
-          <p className="text-white/40 text-sm max-w-sm mx-auto">
+          <p className="mt-4 max-w-lg text-pretty text-base leading-7 text-stone-300/68">
             Pega un enlace o sube cualquier archivo. El sistema detecta lo que se puede hacer con él.
           </p>
         </header>
 
-        {/* Navigation tabs */}
         <nav
           aria-label="Secciones de la aplicación"
-          className="flex rounded-2xl overflow-hidden border border-white/10 bg-white/4 mb-6"
+          className="mb-6 grid grid-cols-3 overflow-hidden rounded-[18px] border border-white/10 bg-[#171a1f]/88 p-1 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur"
         >
           {(
             [
@@ -267,10 +278,10 @@ export default function Home() {
               role="tab"
               aria-selected={activeTab === id}
               aria-controls={`panel-${id}`}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 min-h-[44px] text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+              className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] px-2 py-3 text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/70 motion-reduce:transition-none ${
                 activeTab === id
-                  ? "bg-white/10 text-white"
-                  : "text-white/35 hover:text-white/60"
+                  ? "bg-stone-100 text-[#101316] shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
+                  : "text-stone-400 hover:bg-white/5 hover:text-stone-100"
               }`}
             >
               {icon}
@@ -299,10 +310,10 @@ export default function Home() {
                       <div
                         className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors motion-reduce:transition-none ${
                           isCurrent
-                            ? "bg-cyan-500/15 text-cyan-400"
+                            ? "bg-teal-400/15 text-teal-200 ring-1 ring-teal-300/20"
                             : isCompleted
-                              ? "bg-emerald-500/10 text-emerald-400"
-                              : "text-white/20"
+                              ? "bg-emerald-400/10 text-emerald-300"
+                              : "text-stone-500"
                         }`}
                       >
                         {isCompleted ? (
@@ -351,7 +362,7 @@ export default function Home() {
 
                 {/* Step 4: Confirm & start */}
                 {(flowStep === "format" || flowStep === "confirm") && selectedCap && (
-                  <div className="pt-2 space-y-3 border-t border-white/5 animate-in fade-in duration-300 motion-reduce:animate-none">
+                  <div className="space-y-3 border-t border-white/8 pt-2 animate-in fade-in duration-300 motion-reduce:animate-none">
                     {/* Rights confirmation — only for remote URL */}
                     {needsRights && (
                       <div className="flex items-start gap-3">
@@ -363,9 +374,9 @@ export default function Home() {
                             setRightsConfirmed(e.target.checked);
                             if (e.target.checked) setFlowStep("confirm");
                           }}
-                          className="mt-1 accent-cyan-500 h-5 w-5 min-w-[20px] min-h-[20px]"
+                          className="mt-1 h-5 min-h-[20px] w-5 min-w-[20px] accent-teal-400"
                         />
-                        <label htmlFor="rights-check" className="text-xs text-white/50 cursor-pointer leading-relaxed">
+                        <label htmlFor="rights-check" className="cursor-pointer text-xs leading-relaxed text-stone-300/70">
                           {t("convert.rights")}. Soy responsable de respetar los derechos de autor.
                         </label>
                       </div>
@@ -378,7 +389,7 @@ export default function Home() {
                         isConverting ||
                         (needsRights && !rightsConfirmed)
                       }
-                      className="w-full h-13 py-3.5 rounded-xl bg-white text-black font-bold text-sm hover:bg-cyan-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px] motion-reduce:transition-none"
+                      className="h-13 min-h-[44px] w-full rounded-xl bg-teal-300 px-4 py-3.5 text-sm font-black text-[#071112] shadow-[0_18px_45px_rgba(45,212,191,0.18)] transition-all hover:-translate-y-0.5 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
                     >
                       {isConverting
                         ? "Procesando..."
@@ -438,8 +449,8 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-20 pt-6 border-t border-white/5 text-center">
-          <p className="text-[10px] text-white/20 uppercase tracking-widest">
+        <footer className="mt-20 border-t border-white/8 pt-6 text-center">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-stone-500">
             Link2Media · Procesamiento 100% local · {new Date().getFullYear()}
           </p>
         </footer>

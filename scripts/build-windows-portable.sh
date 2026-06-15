@@ -82,6 +82,7 @@ info "Limpiando staging anterior..."
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"
 mkdir -p "$CACHE_DIR"
+mkdir -p "$STAGING_DIR/licenses"
 ok "Staging limpio: $STAGING_DIR"
 
 # ── 4. Instalar dependencias ─────────────────────────────────────────────────
@@ -117,6 +118,21 @@ mkdir -p "$APP_DIR"
 cp -a .next/standalone/. "$APP_DIR/"
 find "$APP_DIR" -maxdepth 1 -type f ! -name "server.js" ! -name "package.json" -delete 2>/dev/null || true
 ok "Archivos no pertenecientes a la app eliminados de app/ raíz"
+
+info "Podando archivos de desarrollo trazados por Next.js..."
+rm -rf \
+  "$APP_DIR/.git" \
+  "$APP_DIR/.next/cache" \
+  "$APP_DIR/.tmp" \
+  "$APP_DIR/docs" \
+  "$APP_DIR/scripts" \
+  "$APP_DIR/src" \
+  "$APP_DIR/tests" \
+  "$APP_DIR/data" \
+  "$APP_DIR/tsconfig.tsbuildinfo" \
+  "$APP_DIR/Link2Media-Windows-x64.zip" \
+  "$APP_DIR/Link2Media-Windows-x64.zip.sha256" 2>/dev/null || true
+ok "Fuentes, tests, scripts y datos de desarrollo excluidos del runtime portable"
 
 mkdir -p "$APP_DIR/.next/static"
 cp -a .next/static/. "$APP_DIR/.next/static/"
@@ -282,6 +298,7 @@ ok "ffmpeg.exe y ffprobe.exe extraídos"
 info "Preparando 7-Zip standalone..."
 
 SEVENZIP_CACHE="$CACHE_DIR/7z${SEVENZIP_VERSION}-extra.7z"
+SEVENZIP_RUNTIME_VERSION="$SEVENZIP_VERSION"
 # Primero intentar GitHub (ip7z/7zip), luego 7-zip.org, luego SourceForge
 SEVENZIP_URL_GITHUB="https://github.com/ip7z/7zip/releases/download/${SEVENZIP_TAG}/7z${SEVENZIP_VERSION}-extra.7z"
 SEVENZIP_URL_OFFICIAL="https://www.7-zip.org/a/7z${SEVENZIP_VERSION}-extra.7z"
@@ -313,7 +330,43 @@ if [[ -f "$SEVENZIP_CACHE" ]]; then
     7za e -y -o"$TOOLS_DIR/sevenzip" "$SEVENZIP_CACHE" "7za.exe" "7za.dll" "7zxa.dll" 2>/dev/null || true
     7za e -y -o"$TOOLS_DIR/sevenzip" "$SEVENZIP_CACHE" "7zr.exe" "7z.dll" 2>/dev/null || true
   else
-    warn "Se necesita 7z o p7zip en el sistema para extraer .7z — se necesitará 7za.exe manual en tools/sevenzip/"
+    if python3 -c "import py7zr" >/dev/null 2>&1; then
+      TMP_7Z="$CACHE_DIR/.tmp_7zip_py"
+      rm -rf "$TMP_7Z"
+      mkdir -p "$TMP_7Z"
+      if ! SEVENZIP_ARCHIVE="$SEVENZIP_CACHE" SEVENZIP_OUT="$TMP_7Z" python3 - << 'PYEOF'
+import os
+import py7zr
+
+with py7zr.SevenZipFile(os.environ["SEVENZIP_ARCHIVE"], mode="r") as archive:
+    archive.extractall(path=os.environ["SEVENZIP_OUT"])
+PYEOF
+      then
+        warn "py7zr no pudo extraer el paquete moderno de 7-Zip; usando fallback ZIP clásico"
+      fi
+      find "$TMP_7Z" -maxdepth 2 -type f \( -iname "7za.exe" -o -iname "7za.dll" -o -iname "7zxa.dll" -o -iname "7zr.exe" -o -iname "7z.dll" \) -exec cp {} "$TOOLS_DIR/sevenzip/" \; 2>/dev/null || true
+      rm -rf "$TMP_7Z"
+    else
+      warn "Se necesita 7z/p7zip o py7zr para extraer .7z — instala con: python3 -m pip install --user py7zr"
+    fi
+  fi
+  if [[ ! -f "$TOOLS_DIR/sevenzip/7za.exe" ]] && [[ ! -f "$TOOLS_DIR/sevenzip/7zr.exe" ]]; then
+    warn "Usando 7za920.zip como fallback portable de 7-Zip"
+    SEVENZIP_RUNTIME_VERSION="9.20"
+    SEVENZIP_LEGACY_CACHE="$CACHE_DIR/7za920.zip"
+    SEVENZIP_LEGACY_URL="https://www.7-zip.org/a/7za920.zip"
+    download_cached "$SEVENZIP_LEGACY_URL" "$SEVENZIP_LEGACY_CACHE" || warn "No se pudo descargar fallback 7za920.zip"
+    if [[ -f "$SEVENZIP_LEGACY_CACHE" ]]; then
+      unzip -q -o "$SEVENZIP_LEGACY_CACHE" "7za.exe" -d "$TOOLS_DIR/sevenzip" \
+        || warn "No se pudo extraer 7za.exe del fallback ZIP"
+    fi
+  fi
+  if [[ ! -f "$TOOLS_DIR/sevenzip/7z.exe" ]]; then
+    if [[ -f "$TOOLS_DIR/sevenzip/7za.exe" ]]; then
+      cp "$TOOLS_DIR/sevenzip/7za.exe" "$TOOLS_DIR/sevenzip/7z.exe"
+    elif [[ -f "$TOOLS_DIR/sevenzip/7zr.exe" ]]; then
+      cp "$TOOLS_DIR/sevenzip/7zr.exe" "$TOOLS_DIR/sevenzip/7z.exe"
+    fi
   fi
   ok "7-Zip procesado (SHA256: ${SEVENZIP_SHA256:0:16}...)"
 else
@@ -547,21 +600,25 @@ info "Copiando scripts de Windows..."
 INTERNAL_DIR="$STAGING_DIR/internal"
 mkdir -p "$INTERNAL_DIR"
 
-cp "$SCRIPTS_DIR/windows-portable/start-link2media.ps1"  "$INTERNAL_DIR/" 2>/dev/null || warn "start-link2media.ps1 no encontrado"
-cp "$SCRIPTS_DIR/windows-portable/stop-link2media.ps1"   "$INTERNAL_DIR/" 2>/dev/null || warn "stop-link2media.ps1 no encontrado"
-cp "$SCRIPTS_DIR/windows-portable/update-ytdlp.ps1"      "$INTERNAL_DIR/" 2>/dev/null || warn "update-ytdlp.ps1 no encontrado"
+cp "$SCRIPTS_DIR/windows-portable/start-link2media.ps1"     "$INTERNAL_DIR/" 2>/dev/null || warn "start-link2media.ps1 no encontrado"
+cp "$SCRIPTS_DIR/windows-portable/stop-link2media.ps1"      "$INTERNAL_DIR/" 2>/dev/null || warn "stop-link2media.ps1 no encontrado"
+cp "$SCRIPTS_DIR/windows-portable/update-ytdlp.ps1"         "$INTERNAL_DIR/" 2>/dev/null || warn "update-ytdlp.ps1 no encontrado"
+cp "$SCRIPTS_DIR/windows-portable/diagnose-link2media.ps1"  "$INTERNAL_DIR/" 2>/dev/null || warn "diagnose-link2media.ps1 no encontrado"
 
 cp "$SCRIPTS_DIR/INICIAR_LINK2MEDIA.bat"   "$STAGING_DIR/" 2>/dev/null || warn "INICIAR_LINK2MEDIA.bat no encontrado"
 cp "$SCRIPTS_DIR/CERRAR_LINK2MEDIA.bat"    "$STAGING_DIR/" 2>/dev/null || warn "CERRAR_LINK2MEDIA.bat no encontrado"
 cp "$SCRIPTS_DIR/ACTUALIZAR_YTDLP.bat"     "$STAGING_DIR/" 2>/dev/null || warn "ACTUALIZAR_YTDLP.bat no encontrado"
+cp "$SCRIPTS_DIR/DIAGNOSTICO_LINK2MEDIA.bat" "$STAGING_DIR/" 2>/dev/null || warn "DIAGNOSTICO_LINK2MEDIA.bat no encontrado"
 
 ok "Scripts copiados"
 
 # ── 21. Crear directorios vacíos ─────────────────────────────────────────────
 mkdir -p "$STAGING_DIR/data/temp"
+mkdir -p "$STAGING_DIR/temp"
 mkdir -p "$STAGING_DIR/logs"
 
 printf "carpeta temporal de conversiones - generada automaticamente\n" > "$STAGING_DIR/data/temp/placeholder.txt"
+printf "carpeta temporal de conversiones - generada automaticamente\n" > "$STAGING_DIR/temp/placeholder.txt"
 printf "carpeta de logs de la aplicacion - generada automaticamente\n" > "$STAGING_DIR/logs/placeholder.txt"
 
 ok "Directorios data/temp y logs creados"
@@ -662,9 +719,9 @@ Motores de conversión:
   FFmpeg:         BtbN GPL ($FFMPEG_WINDOWS_VERSION)
   better-sqlite3: $SQLITE3_WINDOWS_VERSION
   Pandoc:         $PANDOC_VERSION
-  7-Zip:         $SEVENZIP_VERSION
+  7-Zip:         $SEVENZIP_RUNTIME_VERSION
   QPDF:           $QPDF_VERSION
-  Tesseract:      $TESSERACT_VERSION
+  Tesseract:      ${TESSERACT_VERSION}$([[ -f "$TOOLS_DIR/tesseract/tesseract.exe" ]] || echo " (no incluido)")
   Poppler:        $POPPLER_VERSION
   Calibre:        ${CALIBRE_VERSION}$([ "$INCLUDE_CALIBRE" == "1" ] || echo " (no incluido)")
   LibreOffice:    ${LIBREOFFICE_VERSION}$([ "$INCLUDE_LIBREOFFICE" == "1" ] || echo " (no incluido)")
@@ -675,6 +732,8 @@ ok "VERSION.txt generado"
 info "Generando manifest.json..."
 cat > "$STAGING_DIR/manifest.json" << EOF
 {
+  "app": "Link2Media",
+  "version": "$APP_VERSION",
   "application": {
     "name": "Link2Media",
     "version": "$APP_VERSION",
@@ -706,8 +765,9 @@ cat > "$STAGING_DIR/manifest.json" << EOF
       "sha256": "${PANDOC_SHA256:-not-downloaded}"
     },
     "sevenzip": {
-      "version": "$SEVENZIP_VERSION",
-      "sha256": "${SEVENZIP_SHA256:-not-downloaded}"
+      "version": "$SEVENZIP_RUNTIME_VERSION",
+      "sha256": "${SEVENZIP_SHA256:-not-downloaded}",
+      "included": $([[ -f "$TOOLS_DIR/sevenzip/7z.exe" ]] && echo "true" || echo "false")
     },
     "qpdf": {
       "version": "$QPDF_VERSION",
@@ -715,7 +775,8 @@ cat > "$STAGING_DIR/manifest.json" << EOF
     },
     "tesseract": {
       "version": "$TESSERACT_VERSION",
-      "sha256": "${TESSERACT_SHA256:-not-downloaded}"
+      "sha256": "${TESSERACT_SHA256:-not-downloaded}",
+      "included": $([[ -f "$TOOLS_DIR/tesseract/tesseract.exe" ]] && echo "true" || echo "false")
     },
     "poppler": {
       "version": "$POPPLER_VERSION",
@@ -1047,7 +1108,7 @@ echo -e "    sqlite3:    better-sqlite3 v${SQLITE3_WINDOWS_VERSION} (win32-x64)"
 echo -e "    Pandoc:     $PANDOC_VERSION"
 echo -e "    7-Zip:      $SEVENZIP_VERSION"
 echo -e "    QPDF:       $QPDF_VERSION"
-echo -e "    Tesseract:  $TESSERACT_VERSION"
+echo -e "    Tesseract:  ${TESSERACT_VERSION}$([[ -f "$TOOLS_DIR/tesseract/tesseract.exe" ]] && echo " ✓" || echo " (no incluido)")"
 echo -e "    Poppler:    $POPPLER_VERSION"
 echo -e "    Calibre:    ${CALIBRE_VERSION}$([ "$INCLUDE_CALIBRE" == "1" ] && echo " ✓" || echo " (no incluido)")"
 echo -e "    LibreOffice:${LIBREOFFICE_VERSION}$([ "$INCLUDE_LIBREOFFICE" == "1" ] && echo " ✓" || echo " (no incluido)")"

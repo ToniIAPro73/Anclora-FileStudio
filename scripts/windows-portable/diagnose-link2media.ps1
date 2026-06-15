@@ -19,6 +19,15 @@ Write-Host ""
 
 $failures = 0
 
+function Resolve-ToolPath([string[]]$Candidates) {
+    foreach ($candidate in $Candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+    return $Candidates[0]
+}
+
 # - 1. Archivos criticos ------------------------------------
 Write-Host "  [1] Archivos criticos" -ForegroundColor White
 $criticalFiles = @(
@@ -43,10 +52,10 @@ Write-Host ""
 Write-Host "  [2] Herramientas de conversion" -ForegroundColor White
 $tools = @(
     @{ Name = 'yt-dlp'; Path = (Join-Path $BaseDir 'tools\yt-dlp\yt-dlp.exe'); EnvVar = 'LINK2MEDIA_YTDLP_PATH' },
-    @{ Name = 'FFmpeg'; Path = (Join-Path $BaseDir 'tools\ffmpeg\bin\ffmpeg.exe'); EnvVar = 'LINK2MEDIA_FFMPEG_PATH' },
-    @{ Name = 'FFprobe'; Path = (Join-Path $BaseDir 'tools\ffmpeg\bin\ffprobe.exe'); EnvVar = 'LINK2MEDIA_FFPROBE_PATH' },
-    @{ Name = 'QPDF'; Path = (Join-Path $BaseDir 'tools\qpdf\bin\qpdf.exe'); EnvVar = 'LINK2MEDIA_QPDF_PATH' },
-    @{ Name = '7-Zip'; Path = (Join-Path $BaseDir 'tools\sevenzip\7z.exe'); EnvVar = 'LINK2MEDIA_7ZIP_PATH' },
+    @{ Name = 'FFmpeg'; Path = (Resolve-ToolPath @((Join-Path $BaseDir 'tools\ffmpeg\ffmpeg.exe'), (Join-Path $BaseDir 'tools\ffmpeg\bin\ffmpeg.exe'))); EnvVar = 'LINK2MEDIA_FFMPEG_PATH' },
+    @{ Name = 'FFprobe'; Path = (Resolve-ToolPath @((Join-Path $BaseDir 'tools\ffmpeg\ffprobe.exe'), (Join-Path $BaseDir 'tools\ffmpeg\bin\ffprobe.exe'))); EnvVar = 'LINK2MEDIA_FFPROBE_PATH' },
+    @{ Name = 'QPDF'; Path = (Resolve-ToolPath @((Join-Path $BaseDir 'tools\qpdf\qpdf.exe'), (Join-Path $BaseDir 'tools\qpdf\bin\qpdf.exe'))); EnvVar = 'LINK2MEDIA_QPDF_PATH' },
+    @{ Name = '7-Zip'; Path = (Resolve-ToolPath @((Join-Path $BaseDir 'tools\sevenzip\7z.exe'), (Join-Path $BaseDir 'tools\sevenzip\7za.exe'), (Join-Path $BaseDir 'tools\sevenzip\7zr.exe'))); EnvVar = 'LINK2MEDIA_7ZIP_PATH' },
     @{ Name = 'Pandoc'; Path = (Join-Path $BaseDir 'tools\pandoc\pandoc.exe'); EnvVar = 'LINK2MEDIA_PANDOC_PATH' },
     @{ Name = 'LibreOffice'; Path = (Join-Path $BaseDir 'tools\libreoffice\program\soffice.exe'); EnvVar = 'LINK2MEDIA_LIBREOFFICE_PATH' },
     @{ Name = 'Calibre'; Path = (Join-Path $BaseDir 'tools\calibre\ebook-convert.exe'); EnvVar = 'LINK2MEDIA_CALIBRE_PATH' },

@@ -26,6 +26,8 @@ function findSevenZipBinary(): string {
   // 2. Windows portable path
   const portablePaths = [
     path.resolve(process.cwd(), "tools", "sevenzip", "7z.exe"),
+    path.resolve(process.cwd(), "tools", "sevenzip", "7za.exe"),
+    path.resolve(process.cwd(), "tools", "sevenzip", "7zr.exe"),
     path.resolve(process.cwd(), "tools", "7-zip", "7z.exe"),
     path.resolve(process.cwd(), "tools", "7zip", "7z.exe"),
   ];

@@ -16,10 +16,32 @@ $ErrorActionPreference = 'Stop'
 $NodeExe      = Join-Path $BaseDir 'runtime\node.exe'
 $ServerJs     = Join-Path $BaseDir 'app\server.js'
 $YtdlpExe     = Join-Path $BaseDir 'tools\yt-dlp\yt-dlp.exe'
-$FfmpegExe    = Join-Path $BaseDir 'tools\ffmpeg\bin\ffmpeg.exe'
-$FfprobeExe   = Join-Path $BaseDir 'tools\ffmpeg\bin\ffprobe.exe'
-$QpdfExe      = Join-Path $BaseDir 'tools\qpdf\bin\qpdf.exe'
-$SevenZipExe  = Join-Path $BaseDir 'tools\sevenzip\7z.exe'
+function Resolve-ToolPath([string[]]$Candidates) {
+    foreach ($candidate in $Candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+    return $Candidates[0]
+}
+
+$FfmpegExe    = Resolve-ToolPath @(
+    (Join-Path $BaseDir 'tools\ffmpeg\ffmpeg.exe'),
+    (Join-Path $BaseDir 'tools\ffmpeg\bin\ffmpeg.exe')
+)
+$FfprobeExe   = Resolve-ToolPath @(
+    (Join-Path $BaseDir 'tools\ffmpeg\ffprobe.exe'),
+    (Join-Path $BaseDir 'tools\ffmpeg\bin\ffprobe.exe')
+)
+$QpdfExe      = Resolve-ToolPath @(
+    (Join-Path $BaseDir 'tools\qpdf\qpdf.exe'),
+    (Join-Path $BaseDir 'tools\qpdf\bin\qpdf.exe')
+)
+$SevenZipExe  = Resolve-ToolPath @(
+    (Join-Path $BaseDir 'tools\sevenzip\7z.exe'),
+    (Join-Path $BaseDir 'tools\sevenzip\7za.exe'),
+    (Join-Path $BaseDir 'tools\sevenzip\7zr.exe')
+)
 $PandocExe    = Join-Path $BaseDir 'tools\pandoc\pandoc.exe'
 $LibreOfficeExe = Join-Path $BaseDir 'tools\libreoffice\program\soffice.exe'
 $CalibreExe   = Join-Path $BaseDir 'tools\calibre\ebook-convert.exe'
@@ -188,8 +210,18 @@ $env:MEDIA_TEMP_DIR                = $TempDir
 $env:MAX_CONCURRENT_JOBS           = '1'
 $env:MAX_ACTIVE_JOBS_PER_CLIENT    = '1'
 
-# Add FFmpeg and Poppler directories to PATH for fallback
-$env:PATH = "$(Split-Path -Parent $FfmpegExe);$PopplerDir;$env:PATH"
+# Add bundled tool directories to PATH for DLL lookup and fallback discovery.
+$toolPathParts = @(
+    (Split-Path -Parent $FfmpegExe),
+    (Split-Path -Parent $QpdfExe),
+    (Split-Path -Parent $SevenZipExe),
+    (Split-Path -Parent $PandocExe),
+    (Split-Path -Parent $TesseractExe),
+    $PopplerDir,
+    (Split-Path -Parent $CalibreExe),
+    (Split-Path -Parent $LibreOfficeExe)
+) | Where-Object { $_ -and (Test-Path $_) }
+$env:PATH = "$($toolPathParts -join ';');$env:PATH"
 
 # - Lanzar servidor en segundo plano ---------------------
 Write-Step "Iniciando servidor (puerto $selectedPort)..."

@@ -201,28 +201,28 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
 
   const dragBorderClass =
     dragState === "drag-valid"
-      ? "border-cyan-500 bg-cyan-500/10"
+      ? "border-teal-300 bg-teal-400/10"
       : dragState === "drag-invalid"
         ? "border-red-500 bg-red-500/10"
-        : "border-white/15 hover:border-white/30 hover:bg-white/3";
+        : "border-white/14 bg-[#15191f] hover:border-teal-200/30 hover:bg-[#1a2027]";
 
   const dragTextClass =
     dragState === "drag-valid"
-      ? "text-cyan-400"
+      ? "text-teal-200"
       : dragState === "drag-invalid"
         ? "text-red-400"
         : "";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-[22px] border border-white/10 bg-[#111419]/86 p-3 shadow-[0_24px_90px_rgba(0,0,0,0.34)] backdrop-blur sm:p-4">
       {/* Tab switcher */}
-      <div className="flex rounded-xl overflow-hidden border border-white/10 bg-white/5">
+      <div className="grid grid-cols-2 overflow-hidden rounded-[16px] border border-white/10 bg-black/20 p-1">
         <button
           type="button"
           onClick={() => setTab("url")}
           aria-label="Introducir un enlace URL"
-          className={`flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 motion-reduce:transition-none ${
-            tab === "url" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
+          className={`flex min-h-[44px] items-center justify-center gap-2 rounded-[12px] py-3 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/70 motion-reduce:transition-none ${
+            tab === "url" ? "bg-stone-100 text-[#101316]" : "text-stone-500 hover:bg-white/5 hover:text-stone-200"
           }`}
         >
           <Link2 className="h-4 w-4" />
@@ -232,8 +232,8 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
           type="button"
           onClick={() => setTab("file")}
           aria-label="Subir un archivo local"
-          className={`flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 motion-reduce:transition-none ${
-            tab === "file" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
+          className={`flex min-h-[44px] items-center justify-center gap-2 rounded-[12px] py-3 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/70 motion-reduce:transition-none ${
+            tab === "file" ? "bg-stone-100 text-[#101316]" : "text-stone-500 hover:bg-white/5 hover:text-stone-200"
           }`}
         >
           <Upload className="h-4 w-4" />
@@ -245,7 +245,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
       {tab === "url" && (
         <form onSubmit={handleUrlSubmit} className="space-y-3">
           <div>
-            <label htmlFor="url-input" className="block text-xs text-white/50 mb-1.5">
+            <label htmlFor="url-input" className="mb-1.5 block text-xs font-semibold text-stone-300/70">
               Enlace de YouTube
             </label>
             <input
@@ -254,7 +254,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://youtube.com/watch?v=..."
-              className="w-full rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 px-4 py-3 min-h-[44px] text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/40"
+              className="min-h-[44px] w-full rounded-xl border border-white/10 bg-[#0b0d10] px-4 py-3 text-sm text-stone-100 placeholder-stone-600 shadow-inner shadow-black/35 focus:border-teal-300/40 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
               autoComplete="off"
               disabled={isLoading}
               aria-label="URL de YouTube"
@@ -263,7 +263,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
           <button
             type="submit"
             disabled={!urlInput.trim() || isLoading}
-            className="w-full h-12 min-h-[44px] rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 motion-reduce:transition-none"
+            className="flex h-12 min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-teal-300 text-sm font-black text-[#071112] shadow-[0_16px_36px_rgba(45,212,191,0.16)] transition-all hover:-translate-y-0.5 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
           >
             {isLoading ? (
               <>
@@ -274,7 +274,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               "Analizar"
             )}
           </button>
-          <p className="text-[11px] text-white/25 text-center">
+          <p className="text-center text-[11px] text-stone-500">
             Compatible con youtube.com, youtu.be y music.youtube.com
           </p>
         </form>
@@ -292,7 +292,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
             aria-label="Arrastra un archivo o haz clic para seleccionar audio, vídeo, imágenes, documentos, datos y más"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
-            className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 motion-reduce:transition-none ${dragBorderClass} ${
+            className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all focus:outline-none focus:ring-2 focus:ring-teal-300/50 motion-reduce:transition-none sm:p-10 ${dragBorderClass} ${
               isLoading ? "pointer-events-none opacity-50" : ""
             }`}
           >
@@ -303,7 +303,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 text-white/50">
-                <Upload className={`h-10 w-10 transition-colors ${dragState === "drag-valid" ? "text-cyan-400" : dragState === "drag-invalid" ? "text-red-400" : ""}`} />
+                <Upload className={`h-10 w-10 transition-colors ${dragState === "drag-valid" ? "text-teal-200" : dragState === "drag-invalid" ? "text-red-400" : "text-stone-400"}`} />
                 <div>
                   <p className={`text-sm font-medium ${dragTextClass || "text-white/70"}`}>
                     {dragState === "drag-valid"
@@ -312,8 +312,8 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
                         ? "Formato no soportado"
                         : "Arrastra o haz clic para seleccionar"}
                   </p>
-                  <p className="text-xs mt-1">Audio, vídeo, imágenes, documentos, datos y más</p>
-                  <p className="text-xs mt-0.5">Tamaño máximo: 2 GB</p>
+                  <p className="mt-1 text-xs text-stone-400">Audio, vídeo, imágenes, documentos, datos y más</p>
+                  <p className="mt-0.5 text-xs text-stone-500">Tamaño máximo: 2 GB</p>
                 </div>
               </div>
             )}
