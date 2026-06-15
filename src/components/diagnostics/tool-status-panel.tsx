@@ -1,35 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, XCircle, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
+
+interface HealthDependency {
+  name: string;
+  available: boolean;
+  version: string | null;
+  path: string | null;
+  status: "ok" | "missing" | "error";
+  recommendedAction: string | null;
+}
 
 interface HealthData {
   ok: boolean;
+  app: string;
   status: string;
-  dependencies: {
-    ytdlp: boolean;
-    ffmpeg: boolean;
-    ffprobe: boolean;
-  };
-  versions?: {
-    ytdlp?: string;
-    ffmpeg?: string;
+  dependencies: HealthDependency[];
+  summary: {
+    total: number;
+    available: number;
+    missing: number;
   };
 }
 
-function ToolRow({ name, ok, version }: { name: string; ok: boolean; version?: string }) {
+function ToolRow({ dep }: { dep: HealthDependency }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
-      <div className="flex items-center gap-2.5">
-        {ok ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+    <div className="flex items-start justify-between py-2.5 border-b border-white/5 last:border-0 gap-3">
+      <div className="flex items-start gap-2.5 min-w-0">
+        {dep.available ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
         ) : (
-          <XCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
+          <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" aria-hidden="true" />
         )}
-        <span className="text-sm text-white/80">{name}</span>
+        <div className="min-w-0">
+          <span className="text-sm text-white/80">{dep.name}</span>
+          {!dep.available && dep.recommendedAction && (
+            <p className="text-[10px] text-amber-400/80 mt-0.5 leading-tight">
+              {dep.recommendedAction}
+            </p>
+          )}
+        </div>
       </div>
-      <span className={`text-xs font-mono ${ok ? "text-white/40" : "text-red-400"}`}>
-        {version ?? (ok ? "Disponible" : "No encontrado")}
+      <span className={`text-xs font-mono shrink-0 ${dep.available ? "text-white/40" : "text-red-400"}`}>
+        {dep.version ?? (dep.available ? "✓" : "✗")}
       </span>
     </div>
   );
@@ -84,40 +98,54 @@ export function ToolStatusPanel() {
           No se pudo conectar al servidor de diagnóstico.
         </div>
       ) : (
-        <div className="rounded-xl border border-white/10 bg-white/3 p-4">
-          {/* Overall status */}
-          <div
-            className={`rounded-lg px-3 py-2 mb-4 text-sm flex items-center gap-2 ${
-              data.ok
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                : "bg-red-500/10 text-red-400 border border-red-500/20"
-            }`}
-          >
-            {data.ok ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-            {data.ok ? "Sistema listo para convertir" : "Algunas dependencias no están disponibles"}
+        <>
+          <div className="rounded-xl border border-white/10 bg-white/3 p-4">
+            {/* Overall status */}
+            <div
+              className={`rounded-lg px-3 py-2 mb-4 text-sm flex items-center gap-2 ${
+                data.ok
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  : "bg-red-500/10 text-red-400 border border-red-500/20"
+              }`}
+            >
+              {data.ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+              {data.ok
+                ? "Sistema listo para convertir"
+                : data.status === "degraded"
+                  ? "Funcionalidad limitada — algunos motores no están disponibles"
+                  : "Algunas dependencias no están disponibles"}
+            </div>
+
+            {/* Summary */}
+            <div className="flex gap-4 mb-4 text-xs text-white/40">
+              <span>{data.summary.available}/{data.summary.total} disponibles</span>
+              {data.summary.missing > 0 && (
+                <span className="text-amber-400">{data.summary.missing} no disponibles</span>
+              )}
+            </div>
+
+            {/* Tool list */}
+            <div>
+              {data.dependencies.map((dep) => (
+                <ToolRow key={dep.name} dep={dep} />
+              ))}
+            </div>
           </div>
 
-          {/* Tool list */}
-          <div>
-            <ToolRow name="yt-dlp" ok={data.dependencies.ytdlp} version={data.versions?.ytdlp} />
-            <ToolRow name="FFmpeg" ok={data.dependencies.ffmpeg} version={data.versions?.ffmpeg} />
-            <ToolRow name="FFprobe" ok={data.dependencies.ffprobe} />
-          </div>
-        </div>
-      )}
-
-      {data && !data.ok && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-400 space-y-1.5">
-          <p className="font-medium">¿Cómo solucionar esto?</p>
-          <ul className="space-y-1 text-xs text-amber-400/80">
-            {!data.dependencies.ytdlp && (
-              <li>• Instala yt-dlp: <code className="font-mono bg-white/10 px-1 rounded">pip install yt-dlp</code></li>
-            )}
-            {(!data.dependencies.ffmpeg || !data.dependencies.ffprobe) && (
-              <li>• Instala FFmpeg y asegúrate de que está en el PATH del sistema.</li>
-            )}
-          </ul>
-        </div>
+          {/* Missing tools recommendations */}
+          {data.summary.missing > 0 && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-400 space-y-1.5">
+              <p className="font-medium">¿Cómo solucionar esto?</p>
+              <ul className="space-y-1 text-xs text-amber-400/80">
+                {data.dependencies
+                  .filter((d) => !d.available && d.recommendedAction)
+                  .map((d) => (
+                    <li key={d.name}>• <strong>{d.name}:</strong> {d.recommendedAction}</li>
+                  ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

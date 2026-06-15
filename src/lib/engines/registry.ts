@@ -11,6 +11,7 @@ import { qpdfEngine } from "./pdf/qpdf-engine";
 import { sevenZipEngine } from "./archive/sevenzip-engine";
 import { pandocEngine } from "./document/pandoc-engine";
 import { libreOfficeEngine } from "./document/libreoffice-engine";
+import { ffmpegEngine } from "./media/ffmpeg-engine";
 
 // ── Registration ─────────────────────────────────────────────────────────────
 
@@ -49,6 +50,12 @@ const REGISTERED_ENGINES: EngineRegistration[] = [
     engine: libreOfficeEngine,
     categories: ["document", "spreadsheet", "presentation"],
     requiredTools: ["libreoffice"],
+    enabled: true,
+  },
+  {
+    engine: ffmpegEngine,
+    categories: ["audio", "video"],
+    requiredTools: ["ffmpeg", "ffprobe"],
     enabled: true,
   },
 ];

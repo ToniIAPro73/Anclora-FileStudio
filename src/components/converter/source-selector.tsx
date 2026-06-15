@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Loader2, Link2, Upload, AlertTriangle } from "lucide-react";
+import { INPUT_ACCEPT_ATTR } from "@/lib/domain/format-catalog";
 
 interface SourceSelectorProps {
   onUrlAnalyzed: (result: RemoteAnalysisResult) => void;
-  onFileAnalyzed: (result: LocalAnalysisResult) => void;
+  onFileAnalyzed: (result: LocalAnalysisResult | UniversalAnalysisResult) => void;
   isLoading: boolean;
   setLoading: (v: boolean) => void;
 }
@@ -20,15 +21,28 @@ export interface RemoteAnalysisResult {
 }
 
 export interface LocalAnalysisResult {
-  kind: "local-file";
-  uploadId: string;
+  kind: "local-media";
+  inputId: string;
   originalName: string;
   storedRelativePath: string;
   sizeBytes: number;
   descriptor: MediaDescriptorLite;
 }
 
-export type AnalysisResult = RemoteAnalysisResult | LocalAnalysisResult;
+export interface UniversalAnalysisResult {
+  kind: "universal-file";
+  inputId: string;
+  originalName: string;
+  storedRelativePath: string;
+  sizeBytes: number;
+  descriptor: MediaDescriptorLite;
+  universalDescriptor: unknown;
+  category: string;
+  detectedFormat: string | null;
+  confidence: "high" | "medium" | "low";
+}
+
+export type AnalysisResult = RemoteAnalysisResult | LocalAnalysisResult | UniversalAnalysisResult;
 
 export interface MediaDescriptorLite {
   container: string | null;
@@ -66,11 +80,13 @@ export interface SubtitleStreamLite {
   isDefault: boolean;
 }
 
+type DragState = "idle" | "drag-valid" | "drag-invalid";
+
 export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLoading }: SourceSelectorProps) {
   const [tab, setTab] = useState<"url" | "file">("url");
   const [urlInput, setUrlInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [dragState, setDragState] = useState<DragState>("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
@@ -107,7 +123,35 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al analizar el archivo");
-      onFileAnalyzed(data as LocalAnalysisResult);
+
+      if (data.kind === "universal-file") {
+        // Universal file (non-media): pass full result including universalDescriptor
+        onFileAnalyzed({
+          kind: "universal-file",
+          inputId: data.inputId,
+          originalName: data.originalName,
+          storedRelativePath: data.storedRelativePath,
+          sizeBytes: data.sizeBytes,
+          descriptor: {
+            container: null,
+            durationSeconds: null,
+            sizeBytes: data.sizeBytes,
+            hasAudio: false,
+            hasVideo: false,
+            hasSubtitles: false,
+            audioStreams: [],
+            videoStreams: [],
+            subtitleStreams: [],
+          },
+          universalDescriptor: data.universalDescriptor,
+          category: data.category,
+          detectedFormat: data.detectedFormat ?? null,
+          confidence: data.confidence ?? "medium",
+        } satisfies UniversalAnalysisResult);
+      } else {
+        // Local media file (ffprobe path)
+        onFileAnalyzed(data as LocalAnalysisResult);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -115,12 +159,58 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const isFileValid = useCallback((file: File): boolean => {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    // Check against the accept attribute extensions
+    const acceptExts = INPUT_ACCEPT_ATTR.split(",").map((s) => s.trim().replace(/^\./, ""));
+    return acceptExts.includes(ext) || file.type.startsWith("audio/") || file.type.startsWith("video/") || file.type.startsWith("image/");
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    e.stopPropagation();
+    const file = e.dataTransfer.items[0];
+    if (file && file.kind === "file") {
+      // We can't fully validate during dragover, assume valid
+      setDragState("drag-valid");
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState("idle");
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState("idle");
     const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  };
+    if (file) {
+      if (isFileValid(file)) {
+        handleFile(file);
+      } else {
+        setError("Formato de archivo no soportado.");
+        setDragState("drag-invalid");
+        setTimeout(() => setDragState("idle"), 2000);
+      }
+    }
+  }, [isFileValid]);
+
+  const dragBorderClass =
+    dragState === "drag-valid"
+      ? "border-cyan-500 bg-cyan-500/10"
+      : dragState === "drag-invalid"
+        ? "border-red-500 bg-red-500/10"
+        : "border-white/15 hover:border-white/30 hover:bg-white/3";
+
+  const dragTextClass =
+    dragState === "drag-valid"
+      ? "text-cyan-400"
+      : dragState === "drag-invalid"
+        ? "text-red-400"
+        : "";
 
   return (
     <div className="space-y-4">
@@ -129,6 +219,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
         <button
           type="button"
           onClick={() => setTab("url")}
+          aria-label="Introducir un enlace URL"
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
             tab === "url" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
           }`}
@@ -139,6 +230,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
         <button
           type="button"
           onClick={() => setTab("file")}
+          aria-label="Subir un archivo local"
           className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
             tab === "file" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
           }`}
@@ -164,6 +256,7 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               className="w-full rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/40"
               autoComplete="off"
               disabled={isLoading}
+              aria-label="URL de YouTube"
             />
           </div>
           <button
@@ -190,19 +283,17 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
       {tab === "file" && (
         <div className="space-y-3">
           <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             role="button"
-            aria-label="Arrastra un archivo multimedia o haz clic para seleccionar"
+            aria-label="Arrastra un archivo o haz clic para seleccionar audio, vídeo, imágenes, documentos, datos y más"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
-            className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
-              isDragging
-                ? "border-cyan-500 bg-cyan-500/10"
-                : "border-white/15 hover:border-white/30 hover:bg-white/3"
-            } ${isLoading ? "pointer-events-none opacity-50" : ""}`}
+            className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${dragBorderClass} ${
+              isLoading ? "pointer-events-none opacity-50" : ""
+            }`}
           >
             {isLoading ? (
               <div className="flex flex-col items-center gap-3 text-white/60">
@@ -211,12 +302,16 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 text-white/50">
-                <Upload className={`h-10 w-10 ${isDragging ? "text-cyan-400" : ""}`} />
+                <Upload className={`h-10 w-10 transition-colors ${dragState === "drag-valid" ? "text-cyan-400" : dragState === "drag-invalid" ? "text-red-400" : ""}`} />
                 <div>
-                  <p className="text-sm font-medium text-white/70">
-                    {isDragging ? "Suelta el archivo aquí" : "Arrastra o haz clic para seleccionar"}
+                  <p className={`text-sm font-medium ${dragTextClass || "text-white/70"}`}>
+                    {dragState === "drag-valid"
+                      ? "Suelta el archivo aquí"
+                      : dragState === "drag-invalid"
+                        ? "Formato no soportado"
+                        : "Arrastra o haz clic para seleccionar"}
                   </p>
-                  <p className="text-xs mt-1">MP3, WAV, FLAC, MP4, MKV, WebM, AVI y más</p>
+                  <p className="text-xs mt-1">Audio, vídeo, imágenes, documentos, datos y más</p>
                   <p className="text-xs mt-0.5">Tamaño máximo: 2 GB</p>
                 </div>
               </div>
@@ -225,8 +320,9 @@ export function SourceSelector({ onUrlAnalyzed, onFileAnalyzed, isLoading, setLo
               ref={fileInputRef}
               type="file"
               className="sr-only"
-              accept="audio/*,video/*,.mkv,.flac,.ogg"
+              accept={INPUT_ACCEPT_ATTR}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+              aria-label="Seleccionar archivo local"
             />
           </div>
         </div>

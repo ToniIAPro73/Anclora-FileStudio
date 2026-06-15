@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Toaster, toast } from "sonner";
-import { SourceSelector, type AnalysisResult } from "@/components/converter/source-selector";
+import { SourceSelector, type AnalysisResult, type UniversalAnalysisResult } from "@/components/converter/source-selector";
 import { InputAnalysisCard } from "@/components/converter/input-analysis-card";
 import { CompatibilityPanel } from "@/components/converter/compatibility-panel";
 import { JobProgressCard } from "@/components/converter/job-progress-card";
 import { ArtifactResultCard } from "@/components/converter/artifact-result-card";
 import { JobHistory } from "@/components/history/job-history";
 import { ToolStatusPanel } from "@/components/diagnostics/tool-status-panel";
-import type { ConversionCapability, ConversionPreset } from "@/lib/media/supported-conversions";
+import type { CapabilityInfo } from "@/lib/domain/unified-analysis";
 import { Layers, History, Stethoscope } from "lucide-react";
 
 type Tab = "convert" | "history" | "diagnostics";
@@ -32,8 +32,10 @@ interface JobStatusData {
 }
 
 interface CapabilitiesData {
-  capabilities: ConversionCapability[];
-  recommended: { operation: string; format: string; preset: string | null } | null;
+  capabilities: CapabilityInfo[];
+  recommended: CapabilityInfo | null;
+  inputFormat: string;
+  inputCategory: string;
 }
 
 export default function Home() {
@@ -45,8 +47,7 @@ export default function Home() {
 
   // Capabilities state
   const [capabilities, setCapabilities] = useState<CapabilitiesData | null>(null);
-  const [selectedCap, setSelectedCap] = useState<ConversionCapability | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<ConversionPreset | null>(null);
+  const [selectedCap, setSelectedCap] = useState<CapabilityInfo | null>(null);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
 
   // Job state
@@ -59,24 +60,34 @@ export default function Home() {
     if (!analysisResult) return;
     const loadCaps = async () => {
       try {
+        // Build request body based on analysis kind
+        let body: Record<string, unknown>;
+        if (analysisResult.kind === "universal-file") {
+          // Universal file: send universalDescriptor
+          body = { universalDescriptor: (analysisResult as UniversalAnalysisResult).universalDescriptor };
+        } else {
+          // Media (remote-url or local-file): send descriptor
+          body = { descriptor: analysisResult.descriptor };
+        }
+
         const res = await fetch("/api/capabilities", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: analysisResult.descriptor }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
-        setCapabilities(data as CapabilitiesData);
+        const capData = data as CapabilitiesData;
+        setCapabilities(capData);
 
-        // Auto-select recommended
-        const rec = (data as CapabilitiesData).recommended;
-        if (rec) {
-          const recCap = (data as CapabilitiesData).capabilities.find(
-            (c) => c.operation === rec.operation && c.outputFormat === rec.format
-          );
-          if (recCap) {
-            setSelectedCap(recCap);
-            const preset = recCap.presets.find((p) => p.id === rec.preset) ?? recCap.presets[0];
-            setSelectedPreset(preset ?? null);
+        // Auto-select recommended capability
+        const rec = capData.recommended;
+        if (rec && rec.state === "available") {
+          setSelectedCap(rec);
+        } else {
+          // Fallback: select first available capability
+          const firstAvailable = capData.capabilities.find((c) => c.state === "available");
+          if (firstAvailable) {
+            setSelectedCap(firstAvailable);
           }
         }
       } catch {
@@ -109,36 +120,45 @@ export default function Home() {
     setAnalysisResult(null);
     setCapabilities(null);
     setSelectedCap(null);
-    setSelectedPreset(null);
     setRightsConfirmed(false);
     setJobId(null);
     setJobStatus(null);
     setIsConverting(false);
   }, []);
 
-  const handleCapSelect = (cap: ConversionCapability, preset: ConversionPreset) => {
+  const handleCapSelect = (cap: CapabilityInfo) => {
     setSelectedCap(cap);
-    setSelectedPreset(preset);
   };
 
   const handleStartConversion = async () => {
-    if (!analysisResult || !selectedCap || !selectedPreset) return;
+    if (!analysisResult || !selectedCap) return;
 
     setIsConverting(true);
     setJobStatus({ jobId: "pending", status: "queued", stage: "Iniciando...", progress: 0 });
 
     try {
       const body: Record<string, unknown> = {
-        format: selectedCap.outputFormat,
-        quality: selectedPreset.quality,
         rightsConfirmed: true,
-        operation: selectedCap.operation,
       };
 
-      if (analysisResult.kind === "remote-url") {
+      if (analysisResult.kind === "universal-file") {
+        // Universal conversion: send capabilityId and inputId
+        body.capabilityId = selectedCap.id;
+        body.inputId = (analysisResult as UniversalAnalysisResult).inputId;
+        body.format = selectedCap.outputFormat;
+        body.operation = selectedCap.outputFormat; // best effort
+      } else if (analysisResult.kind === "remote-url") {
+        // Legacy media: URL-based
         body.url = analysisResult.normalizedUrl;
+        body.format = selectedCap.outputFormat;
+        body.operation = selectedCap.outputFormat;
+        body.quality = "5";
       } else {
+        // Legacy media: local file
         body.localFilePath = analysisResult.storedRelativePath;
+        body.format = selectedCap.outputFormat;
+        body.operation = selectedCap.outputFormat;
+        body.quality = "5";
       }
 
       const res = await fetch("/api/jobs", {
@@ -166,7 +186,7 @@ export default function Home() {
     }
   };
 
-  const selectedKey = selectedCap ? `${selectedCap.operation}-${selectedCap.outputFormat}` : null;
+  const selectedKey = selectedCap ? selectedCap.id : null;
 
   const showWorkspace = analysisResult && !jobStatus;
   const showProgress = !!jobStatus && jobStatus.status !== "completed";
@@ -199,10 +219,10 @@ export default function Home() {
             <span className="text-xl font-bold tracking-tight">Link2Media</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
-            Conversor <span className="text-cyan-400">multimedia local</span>
+            Conversor <span className="text-cyan-400">universal local</span>
           </h1>
           <p className="text-white/40 text-sm max-w-sm mx-auto">
-            Pega un enlace o sube un archivo. El sistema detecta lo que se puede hacer con él.
+            Pega un enlace o sube cualquier archivo. El sistema detecta lo que se puede hacer con él.
           </p>
         </header>
 
@@ -293,14 +313,13 @@ export default function Home() {
                       onClick={() => void handleStartConversion()}
                       disabled={
                         isConverting ||
-                        !selectedPreset ||
                         (analysisResult.kind === "remote-url" && !rightsConfirmed)
                       }
                       className="w-full h-13 py-3.5 rounded-xl bg-white text-black font-bold text-sm hover:bg-cyan-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isConverting
                         ? "Procesando..."
-                        : `Convertir a ${selectedCap.outputFormat.toUpperCase()} — ${selectedPreset?.label ?? ""}`}
+                        : `Convertir a ${selectedCap.outputFormat.toUpperCase()} — ${selectedCap.outputLabel}`}
                     </button>
                   </div>
                 )}
