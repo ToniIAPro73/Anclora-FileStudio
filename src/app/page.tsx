@@ -2,17 +2,21 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Toaster, toast } from "sonner";
-import { SourceSelector, type AnalysisResult } from "@/components/converter/source-selector";
+import { SourceSelector, type AnalysisResult, type UniversalAnalysisResult } from "@/components/converter/source-selector";
 import { InputAnalysisCard } from "@/components/converter/input-analysis-card";
 import { CompatibilityPanel } from "@/components/converter/compatibility-panel";
 import { JobProgressCard } from "@/components/converter/job-progress-card";
 import { ArtifactResultCard } from "@/components/converter/artifact-result-card";
 import { JobHistory } from "@/components/history/job-history";
 import { ToolStatusPanel } from "@/components/diagnostics/tool-status-panel";
-import type { ConversionCapability, ConversionPreset } from "@/lib/media/supported-conversions";
-import { Layers, History, Stethoscope } from "lucide-react";
+import type { CapabilityInfo } from "@/lib/domain/unified-analysis";
+import { Layers, History, Stethoscope, CheckCircle2, ArrowRight } from "lucide-react";
+import { t } from "@/i18n";
 
 type Tab = "convert" | "history" | "diagnostics";
+
+// Step-by-step flow states
+type FlowStep = "source" | "analysis" | "format" | "confirm" | "progress" | "result";
 
 interface JobStatusData {
   jobId: string;
@@ -32,12 +36,17 @@ interface JobStatusData {
 }
 
 interface CapabilitiesData {
-  capabilities: ConversionCapability[];
-  recommended: { operation: string; format: string; preset: string | null } | null;
+  capabilities: CapabilityInfo[];
+  recommended: CapabilityInfo | null;
+  inputFormat: string;
+  inputCategory: string;
 }
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("convert");
+
+  // Flow step
+  const [flowStep, setFlowStep] = useState<FlowStep>("source");
 
   // Analysis state
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -45,8 +54,7 @@ export default function Home() {
 
   // Capabilities state
   const [capabilities, setCapabilities] = useState<CapabilitiesData | null>(null);
-  const [selectedCap, setSelectedCap] = useState<ConversionCapability | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<ConversionPreset | null>(null);
+  const [selectedCap, setSelectedCap] = useState<CapabilityInfo | null>(null);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
 
   // Job state
@@ -59,32 +67,50 @@ export default function Home() {
     if (!analysisResult) return;
     const loadCaps = async () => {
       try {
+        let body: Record<string, unknown>;
+        if (analysisResult.kind === "universal-file") {
+          body = { universalDescriptor: (analysisResult as UniversalAnalysisResult).universalDescriptor };
+        } else {
+          body = { descriptor: analysisResult.descriptor };
+        }
+
         const res = await fetch("/api/capabilities", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: analysisResult.descriptor }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
-        setCapabilities(data as CapabilitiesData);
+        const capData = data as CapabilitiesData;
+        setCapabilities(capData);
 
-        // Auto-select recommended
-        const rec = (data as CapabilitiesData).recommended;
-        if (rec) {
-          const recCap = (data as CapabilitiesData).capabilities.find(
-            (c) => c.operation === rec.operation && c.outputFormat === rec.format
-          );
-          if (recCap) {
-            setSelectedCap(recCap);
-            const preset = recCap.presets.find((p) => p.id === rec.preset) ?? recCap.presets[0];
-            setSelectedPreset(preset ?? null);
+        // Auto-select recommended capability
+        const rec = capData.recommended;
+        if (rec && rec.state === "available") {
+          setSelectedCap(rec);
+        } else {
+          const firstAvailable = capData.capabilities.find((c) => c.state === "available");
+          if (firstAvailable) {
+            setSelectedCap(firstAvailable);
           }
         }
+
+        // Move to analysis step, then format after caps loaded
+        setFlowStep("analysis");
       } catch {
         // ignore — capabilities optional
       }
     };
     void loadCaps();
   }, [analysisResult]);
+
+  // Advance to format step when capabilities are loaded
+  useEffect(() => {
+    if (flowStep === "analysis" && capabilities) {
+      // Small delay so user sees the analysis card
+      const timer = setTimeout(() => setFlowStep("format"), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [flowStep, capabilities]);
 
   // Poll job status
   useEffect(() => {
@@ -97,6 +123,7 @@ export default function Home() {
         if (["completed", "failed", "cancelled"].includes(data.status)) {
           setIsConverting(false);
           if (data.status === "failed") toast.error(data.error ?? "La conversión ha fallado");
+          if (data.status === "completed") setFlowStep("result");
         }
       } catch {
         // ignore polling error
@@ -109,36 +136,41 @@ export default function Home() {
     setAnalysisResult(null);
     setCapabilities(null);
     setSelectedCap(null);
-    setSelectedPreset(null);
     setRightsConfirmed(false);
     setJobId(null);
     setJobStatus(null);
     setIsConverting(false);
+    setFlowStep("source");
   }, []);
 
-  const handleCapSelect = (cap: ConversionCapability, preset: ConversionPreset) => {
+  const handleCapSelect = (cap: CapabilityInfo) => {
     setSelectedCap(cap);
-    setSelectedPreset(preset);
   };
 
   const handleStartConversion = async () => {
-    if (!analysisResult || !selectedCap || !selectedPreset) return;
+    if (!analysisResult || !selectedCap) return;
 
     setIsConverting(true);
-    setJobStatus({ jobId: "pending", status: "queued", stage: "Iniciando...", progress: 0 });
+    setFlowStep("progress");
+    setJobStatus({ jobId: "pending", status: "queued", stage: t("progress.queued"), progress: 0 });
 
     try {
       const body: Record<string, unknown> = {
-        format: selectedCap.outputFormat,
-        quality: selectedPreset.quality,
         rightsConfirmed: true,
-        operation: selectedCap.operation,
       };
 
-      if (analysisResult.kind === "remote-url") {
+      if (analysisResult.kind === "universal-file") {
+        body.capabilityId = selectedCap.id;
+        body.inputId = (analysisResult as UniversalAnalysisResult).inputId;
+        body.format = selectedCap.outputFormat;
+      } else if (analysisResult.kind === "remote-url") {
         body.url = analysisResult.normalizedUrl;
+        body.format = selectedCap.outputFormat;
+        body.quality = "5";
       } else {
         body.localFilePath = analysisResult.storedRelativePath;
+        body.format = selectedCap.outputFormat;
+        body.quality = "5";
       }
 
       const res = await fetch("/api/jobs", {
@@ -153,6 +185,7 @@ export default function Home() {
       toast.error(err instanceof Error ? err.message : "Error al iniciar la conversión");
       setIsConverting(false);
       setJobStatus(null);
+      setFlowStep("format");
     }
   };
 
@@ -166,11 +199,20 @@ export default function Home() {
     }
   };
 
-  const selectedKey = selectedCap ? `${selectedCap.operation}-${selectedCap.outputFormat}` : null;
+  const selectedKey = selectedCap ? selectedCap.id : null;
 
-  const showWorkspace = analysisResult && !jobStatus;
-  const showProgress = !!jobStatus && jobStatus.status !== "completed";
-  const showResult = jobStatus?.status === "completed";
+  // Step indicator for the conversion flow
+  const steps: { key: FlowStep; label: string; num: number }[] = [
+    { key: "source", label: "Fuente", num: 1 },
+    { key: "analysis", label: "Análisis", num: 2 },
+    { key: "format", label: "Formato", num: 3 },
+    { key: "confirm", label: "Confirmar", num: 4 },
+    { key: "progress", label: "Progreso", num: 5 },
+    { key: "result", label: "Resultado", num: 6 },
+  ];
+
+  const currentStepIndex = steps.findIndex((s) => s.key === flowStep);
+  const needsRights = analysisResult?.kind === "remote-url";
 
   return (
     <div lang="es" className="min-h-screen bg-[#0a0a0c] text-white">
@@ -199,10 +241,10 @@ export default function Home() {
             <span className="text-xl font-bold tracking-tight">Link2Media</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
-            Conversor <span className="text-cyan-400">multimedia local</span>
+            Conversor <span className="text-cyan-400">universal local</span>
           </h1>
           <p className="text-white/40 text-sm max-w-sm mx-auto">
-            Pega un enlace o sube un archivo. El sistema detecta lo que se puede hacer con él.
+            Pega un enlace o sube cualquier archivo. El sistema detecta lo que se puede hacer con él.
           </p>
         </header>
 
@@ -213,9 +255,9 @@ export default function Home() {
         >
           {(
             [
-              { id: "convert" as Tab, icon: <Layers className="h-4 w-4" />, label: "Convertir" },
-              { id: "history" as Tab, icon: <History className="h-4 w-4" />, label: "Historial" },
-              { id: "diagnostics" as Tab, icon: <Stethoscope className="h-4 w-4" />, label: "Diagnóstico" },
+              { id: "convert" as Tab, icon: <Layers className="h-4 w-4" />, label: t("nav.convert") },
+              { id: "history" as Tab, icon: <History className="h-4 w-4" />, label: t("nav.history") },
+              { id: "diagnostics" as Tab, icon: <Stethoscope className="h-4 w-4" />, label: t("nav.diagnostics") },
             ] as const
           ).map(({ id, icon, label }) => (
             <button
@@ -225,7 +267,7 @@ export default function Home() {
               role="tab"
               aria-selected={activeTab === id}
               aria-controls={`panel-${id}`}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 min-h-[44px] text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
                 activeTab === id
                   ? "bg-white/10 text-white"
                   : "text-white/35 hover:text-white/60"
@@ -240,9 +282,45 @@ export default function Home() {
         {/* Convertir panel */}
         <main id="panel-convert" role="tabpanel" aria-label="Panel de conversión" className={activeTab !== "convert" ? "hidden" : ""}>
           <div className="space-y-5">
+            {/* Step indicator — only show after source step */}
+            {flowStep !== "source" && (
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 motion-reduce:transition-none" aria-label="Pasos de conversión">
+                {steps.map((step, i) => {
+                  const isCompleted = i < currentStepIndex;
+                  const isCurrent = i === currentStepIndex;
+                  // Skip confirm step if no rights needed
+                  if (step.key === "confirm" && !needsRights) return null;
+
+                  return (
+                    <div key={step.key} className="flex items-center gap-1 flex-shrink-0">
+                      {i > 0 && (step.key !== "confirm" || needsRights) && (
+                        <ArrowRight className="h-3 w-3 text-white/15 flex-shrink-0" aria-hidden="true" />
+                      )}
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors motion-reduce:transition-none ${
+                          isCurrent
+                            ? "bg-cyan-500/15 text-cyan-400"
+                            : isCompleted
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : "text-white/20"
+                        }`}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                        ) : (
+                          <span className="h-3 w-3 flex items-center justify-center text-[9px]">{step.num}</span>
+                        )}
+                        <span className="hidden sm:inline">{step.label}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Step 1: Source selector */}
-            {!analysisResult && !jobStatus && (
-              <section aria-labelledby="source-heading">
+            {flowStep === "source" && (
+              <section aria-labelledby="source-heading" className="animate-in fade-in slide-in-from-bottom-3 duration-400 motion-reduce:animate-none">
                 <h2 id="source-heading" className="sr-only">Selecciona la fuente</h2>
                 <SourceSelector
                   onUrlAnalyzed={(r) => setAnalysisResult(r)}
@@ -253,13 +331,14 @@ export default function Home() {
               </section>
             )}
 
-            {/* Step 2 + 3: Analysis card + compatibility */}
-            {showWorkspace && (
-              <div className="space-y-5 animate-in fade-in slide-in-from-bottom-3 duration-400">
+            {/* Step 2: Analysis card */}
+            {(flowStep === "analysis" || flowStep === "format" || flowStep === "confirm") && analysisResult && (
+              <div className="space-y-5 animate-in fade-in slide-in-from-bottom-3 duration-400 motion-reduce:animate-none">
                 <InputAnalysisCard result={analysisResult} onReset={handleReset} />
 
-                {capabilities && capabilities.capabilities.length > 0 && (
-                  <section aria-labelledby="compat-heading">
+                {/* Step 3: Format selector / Compatibility panel */}
+                {(flowStep === "format" || flowStep === "confirm") && capabilities && capabilities.capabilities.length > 0 && (
+                  <section aria-labelledby="compat-heading" className="animate-in fade-in duration-300 motion-reduce:animate-none">
                     <h2 id="compat-heading" className="sr-only">Opciones de conversión</h2>
                     <CompatibilityPanel
                       capabilities={capabilities.capabilities}
@@ -270,20 +349,24 @@ export default function Home() {
                   </section>
                 )}
 
-                {selectedCap && (
-                  <div className="pt-2 space-y-3 border-t border-white/5">
+                {/* Step 4: Confirm & start */}
+                {(flowStep === "format" || flowStep === "confirm") && selectedCap && (
+                  <div className="pt-2 space-y-3 border-t border-white/5 animate-in fade-in duration-300 motion-reduce:animate-none">
                     {/* Rights confirmation — only for remote URL */}
-                    {analysisResult.kind === "remote-url" && (
+                    {needsRights && (
                       <div className="flex items-start gap-3">
                         <input
                           id="rights-check"
                           type="checkbox"
                           checked={rightsConfirmed}
-                          onChange={(e) => setRightsConfirmed(e.target.checked)}
-                          className="mt-1 accent-cyan-500 h-4 w-4"
+                          onChange={(e) => {
+                            setRightsConfirmed(e.target.checked);
+                            if (e.target.checked) setFlowStep("confirm");
+                          }}
+                          className="mt-1 accent-cyan-500 h-5 w-5 min-w-[20px] min-h-[20px]"
                         />
-                        <label htmlFor="rights-check" className="text-xs text-white/50 cursor-pointer">
-                          Confirmo que soy titular del contenido o que dispongo de permiso para descargarlo y convertirlo. Soy responsable de respetar los derechos de autor.
+                        <label htmlFor="rights-check" className="text-xs text-white/50 cursor-pointer leading-relaxed">
+                          {t("convert.rights")}. Soy responsable de respetar los derechos de autor.
                         </label>
                       </div>
                     )}
@@ -293,26 +376,25 @@ export default function Home() {
                       onClick={() => void handleStartConversion()}
                       disabled={
                         isConverting ||
-                        !selectedPreset ||
-                        (analysisResult.kind === "remote-url" && !rightsConfirmed)
+                        (needsRights && !rightsConfirmed)
                       }
-                      className="w-full h-13 py-3.5 rounded-xl bg-white text-black font-bold text-sm hover:bg-cyan-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full h-13 py-3.5 rounded-xl bg-white text-black font-bold text-sm hover:bg-cyan-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px] motion-reduce:transition-none"
                     >
                       {isConverting
                         ? "Procesando..."
-                        : `Convertir a ${selectedCap.outputFormat.toUpperCase()} — ${selectedPreset?.label ?? ""}`}
+                        : `${t("convert.start")} → ${selectedCap.outputFormat.toUpperCase()} — ${selectedCap.outputLabel}`}
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Step 4: Progress */}
-            {showProgress && jobStatus && (
+            {/* Step 5: Progress */}
+            {flowStep === "progress" && jobStatus && (
               <section
                 aria-live="polite"
                 aria-labelledby="progress-heading"
-                className="animate-in fade-in duration-300"
+                className="animate-in fade-in duration-300 motion-reduce:animate-none"
               >
                 <h2 id="progress-heading" className="sr-only">Progreso de conversión</h2>
                 <JobProgressCard
@@ -326,9 +408,9 @@ export default function Home() {
               </section>
             )}
 
-            {/* Step 5: Result */}
-            {showResult && jobStatus?.file && (
-              <section aria-labelledby="result-heading" className="animate-in fade-in duration-300">
+            {/* Step 6: Result */}
+            {flowStep === "result" && jobStatus?.file && (
+              <section aria-labelledby="result-heading" className="animate-in fade-in duration-300 motion-reduce:animate-none">
                 <h2 id="result-heading" className="sr-only">Resultado</h2>
                 <ArtifactResultCard
                   jobId={jobStatus.jobId}

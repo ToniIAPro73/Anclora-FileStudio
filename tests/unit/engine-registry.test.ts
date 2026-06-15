@@ -41,7 +41,11 @@ describe("Engine registry — routing", () => {
   it("returns image capabilities for image descriptor", async () => {
     const caps = await getCapabilities(makeDesc("image", "jpeg"));
     expect(caps.length).toBeGreaterThan(0);
-    expect(caps.every((c) => c.engineId === "sharp-image")).toBe(true);
+    // Both sharp-image and tesseract (OCR) may provide capabilities for image category
+    const engineIds = [...new Set(caps.map((c) => c.engineId))];
+    expect(engineIds).toContain("sharp-image");
+    const sharpCaps = caps.filter((c) => c.engineId === "sharp-image");
+    expect(sharpCaps.length).toBeGreaterThan(0);
   });
 
   it("returns data capabilities for structured-data descriptor", async () => {
@@ -53,7 +57,11 @@ describe("Engine registry — routing", () => {
   it("returns pdf capabilities for pdf descriptor", async () => {
     const caps = await getCapabilities(makeDesc("pdf", "pdf"));
     expect(caps.length).toBeGreaterThan(0);
-    expect(caps.every((c) => c.engineId === "qpdf")).toBe(true);
+    // Both qpdf and tesseract (OCR) may provide capabilities for pdf category
+    const engineIds = [...new Set(caps.map((c) => c.engineId))];
+    expect(engineIds).toContain("qpdf");
+    const qpdfCaps = caps.filter((c) => c.engineId === "qpdf");
+    expect(qpdfCaps.length).toBeGreaterThan(0);
   });
 
   it("returns archive capabilities for archive descriptor", async () => {
@@ -83,6 +91,48 @@ describe("Engine registry — routing", () => {
     const loCaps = caps.filter((c) => c.engineId === "libreoffice");
     expect(loCaps.length).toBeGreaterThan(0);
   });
+
+  it("returns ffmpeg-media capabilities for audio descriptor", async () => {
+    const audioDesc: UniversalFileDescriptor = {
+      id: crypto.randomUUID(),
+      category: "audio",
+      originalName: "test.mp3",
+      extension: "mp3",
+      detectedMimeType: "audio/mpeg",
+      detectedFormat: "mp3",
+      sizeBytes: 5_000_000,
+      sha256: null,
+      source: { kind: "local-upload", originalName: "test.mp3", storedRelativePath: "test.mp3" },
+      attributes: { kind: "media", durationSeconds: 180, bitrate: 128000, hasAudio: true, hasVideo: false, hasSubtitles: false, audioCodec: "mp3", videoCodec: null, width: null, height: null, fps: null },
+      warnings: [],
+      analyzedBy: ["ffprobe"],
+      analyzedAt: new Date().toISOString(),
+    };
+    const caps = await getCapabilities(audioDesc);
+    const ffmpegCaps = caps.filter((c) => c.engineId === "ffmpeg-media");
+    expect(ffmpegCaps.length).toBeGreaterThan(0);
+  });
+
+  it("returns ffmpeg-media capabilities for video descriptor", async () => {
+    const videoDesc: UniversalFileDescriptor = {
+      id: crypto.randomUUID(),
+      category: "video",
+      originalName: "test.mp4",
+      extension: "mp4",
+      detectedMimeType: "video/mp4",
+      detectedFormat: "mp4",
+      sizeBytes: 50_000_000,
+      sha256: null,
+      source: { kind: "local-upload", originalName: "test.mp4", storedRelativePath: "test.mp4" },
+      attributes: { kind: "media", durationSeconds: 120, bitrate: 2000000, hasAudio: true, hasVideo: true, hasSubtitles: false, audioCodec: "aac", videoCodec: "h264", width: 1920, height: 1080, fps: 30 },
+      warnings: [],
+      analyzedBy: ["ffprobe"],
+      analyzedAt: new Date().toISOString(),
+    };
+    const caps = await getCapabilities(videoDesc);
+    const ffmpegCaps = caps.filter((c) => c.engineId === "ffmpeg-media");
+    expect(ffmpegCaps.length).toBeGreaterThan(0);
+  });
 });
 
 describe("Engine registry — getEngine", () => {
@@ -107,6 +157,12 @@ describe("Engine registry — getEngine", () => {
   it("returns null for unknown engine id", () => {
     expect(getEngine("does-not-exist")).toBeNull();
   });
+
+  it("resolves ffmpeg-media engine by id", () => {
+    const engine = getEngine("ffmpeg-media");
+    expect(engine).not.toBeNull();
+    expect(engine?.id).toBe("ffmpeg-media");
+  });
 });
 
 describe("Engine registry — diagnoseAllEngines", () => {
@@ -119,6 +175,9 @@ describe("Engine registry — diagnoseAllEngines", () => {
     expect(ids).toContain("sevenzip");
     expect(ids).toContain("pandoc");
     expect(ids).toContain("libreoffice");
+    expect(ids).toContain("ffmpeg-media");
+    expect(ids).toContain("calibre");
+    expect(ids).toContain("tesseract");
   });
 
   it("each entry has required fields", async () => {

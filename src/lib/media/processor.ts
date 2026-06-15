@@ -9,6 +9,8 @@ import { verifyFile } from "./probe";
 import { sanitizeFilename } from "../security/sanitize-filename";
 import { getVideoMetadata } from "./metadata";
 import { AudioOutputFormat, VideoOutputFormat } from "../jobs/job-types";
+import { createAppError, type ErrorCode } from "../errors/error-codes";
+import { checkDiskSpace } from "../jobs/disk-space-check";
 import crypto from "crypto";
 
 const AUDIO_FORMATS: AudioOutputFormat[] = ["mp3", "m4a", "wav", "flac", "ogg"];
@@ -45,6 +47,20 @@ export async function processJob(jobId: string) {
   const outputPath = path.join(jobDir, `output${extension}`);
 
   try {
+    // Check disk space before processing
+    const estimatedRequired = 100 * 1024 * 1024; // 100 MB estimate for media conversion
+    const diskCheck = await checkDiskSpace(estimatedRequired, CONFIG.media.tempDir);
+    if (!diskCheck.sufficient) {
+      const err = createAppError("INSUFFICIENT_DISK_SPACE", diskCheck.message, { stage: "pre-processing" });
+      jobManager.updateJob(jobId, {
+        status: "failed",
+        error_code: err.code,
+        error_message: diskCheck.message,
+        stage: "Error",
+      });
+      return;
+    }
+
     if (job.input_kind === "remote-url") {
       await processRemoteUrl(jobId, job.input_reference, outputFormat, job.quality, outputPath);
     } else if (job.input_kind === "local-file") {
@@ -54,10 +70,24 @@ export async function processJob(jobId: string) {
       } else if (isVideo) {
         await processLocalVideo(jobId, inputPath, outputFormat as VideoOutputFormat, job.quality, outputPath);
       } else {
-        throw new Error(`Formato no soportado: ${outputFormat}`);
+        const err = createAppError("INPUT_UNSUPPORTED", `Formato no soportado: ${outputFormat}`, { stage: "pre-processing" });
+        jobManager.updateJob(jobId, {
+          status: "failed",
+          error_code: err.code,
+          error_message: err.message,
+          stage: "Error",
+        });
+        return;
       }
     } else {
-      throw new Error("Tipo de entrada no soportado.");
+      const err = createAppError("INPUT_UNSUPPORTED", "Tipo de entrada no soportado.", { stage: "pre-processing" });
+      jobManager.updateJob(jobId, {
+        status: "failed",
+        error_code: err.code,
+        error_message: err.message,
+        stage: "Error",
+      });
+      return;
     }
 
     // Verify output
@@ -71,9 +101,13 @@ export async function processJob(jobId: string) {
     const verification = await verifyFile(outputPath, isAudio ? "mp3" : "mp4");
 
     if (!verification.isValid) {
+      const err = createAppError("ARTIFACT_VALIDATION_FAILED", "La verificación del archivo ha fallado.", {
+        stage: "validation",
+      });
       jobManager.updateJob(jobId, {
         status: "failed",
-        error_message: "La verificación del archivo ha fallado.",
+        error_code: err.code,
+        error_message: err.message,
         stage: "Error",
       });
       return;
@@ -104,10 +138,13 @@ export async function processJob(jobId: string) {
       completed_at: new Date().toISOString(),
     });
   } catch (error: unknown) {
+    const appError = error as { code?: ErrorCode; message?: string };
+    const code: ErrorCode = appError?.code ?? "ENGINE_EXECUTE_FAILED";
     const message =
       error instanceof Error ? error.message : "Error interno del procesador.";
     jobManager.updateJob(jobId, {
       status: "failed",
+      error_code: code,
       error_message: message,
       stage: "Error",
     });
@@ -218,7 +255,10 @@ function runProcess(
 
     proc.on("close", (code: number | null) => {
       if (code !== 0) {
-        reject(new Error(`Proceso finalizado con código ${code}`));
+        const err = createAppError("ENGINE_EXECUTE_FAILED", `Proceso finalizado con código ${code}`, {
+          stage: "execution",
+        });
+        reject(err);
         return;
       }
       resolve();
@@ -226,9 +266,14 @@ function runProcess(
 
     proc.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "ENOENT") {
-        reject(new Error("Dependencia no encontrada. Comprueba que yt-dlp y ffmpeg están disponibles."));
+        reject(createAppError("TOOL_NOT_AVAILABLE", "Dependencia no encontrada. Comprueba que yt-dlp y ffmpeg están disponibles.", {
+          stage: "execution",
+        }));
       } else {
-        reject(err);
+        reject(createAppError("ENGINE_EXECUTE_FAILED", err.message, {
+          stage: "execution",
+          cause: err,
+        }));
       }
     });
   });

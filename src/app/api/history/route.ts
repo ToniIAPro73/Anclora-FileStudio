@@ -24,6 +24,11 @@ export async function GET() {
       createdAt: j.created_at,
       completedAt: j.completed_at,
       expiresAt: j.expires_at,
+      // Universal fields
+      category: j.category,
+      engineId: j.engine_id,
+      lossProfile: j.loss_profile,
+      conversionId: j.conversion_id,
     }));
 
     return NextResponse.json({ jobs: publicJobs });
