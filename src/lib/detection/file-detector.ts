@@ -185,8 +185,8 @@ function probeTextStructure(filePath: string): { mime: string; format: string } 
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) return { mime: "application/json", format: "json" };
     if (trimmed.match(/^---\s*\n/) || trimmed.match(/^[a-zA-Z_][a-zA-Z0-9_]*:\s/m)) return { mime: "application/yaml", format: "yaml" };
     if (trimmed.match(/^\[.*\]\s*\n/m) || trimmed.match(/^[a-zA-Z_]+\s*=\s*/m)) return { mime: "application/toml", format: "toml" };
-    if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) return { mime: "text/xml", format: "xml" };
     if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith("<html")) return { mime: "text/html", format: "html" };
+    if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) return { mime: "text/xml", format: "xml" };
     if (trimmed.match(/^#\s+.+/m) || trimmed.match(/\*\*.+\*\*/)) return { mime: "text/markdown", format: "markdown" };
     // CSV/TSV heuristic: consistent delimiter
     const firstLine = trimmed.split("\n")[0] ?? "";

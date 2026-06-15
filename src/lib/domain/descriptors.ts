@@ -18,7 +18,7 @@ export type InputSource =
   | { kind: "remote-url"; url: string; normalizedUrl: string }
   | { kind: "local-upload"; originalName: string; storedRelativePath: string };
 
-export type LossProfile = "lossless" | "lossy" | "structure-risk" | "metadata-risk" | "none";
+export type LossProfile = "lossless" | "lossy" | "structure-risk" | "metadata-risk" | "layout-risk" | "none";
 
 // ── Per-category attribute shapes ──────────────────────────────────────────
 

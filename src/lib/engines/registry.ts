@@ -12,6 +12,8 @@ import { sevenZipEngine } from "./archive/sevenzip-engine";
 import { pandocEngine } from "./document/pandoc-engine";
 import { libreOfficeEngine } from "./document/libreoffice-engine";
 import { ffmpegEngine } from "./media/ffmpeg-engine";
+import { calibreEngine } from "./ebook/calibre-engine";
+import { tesseractEngine } from "./ocr/tesseract-engine";
 
 // ── Registration ─────────────────────────────────────────────────────────────
 
@@ -56,6 +58,18 @@ const REGISTERED_ENGINES: EngineRegistration[] = [
     engine: ffmpegEngine,
     categories: ["audio", "video"],
     requiredTools: ["ffmpeg", "ffprobe"],
+    enabled: true,
+  },
+  {
+    engine: calibreEngine,
+    categories: ["ebook"],
+    requiredTools: ["ebook-convert"],
+    enabled: true,
+  },
+  {
+    engine: tesseractEngine,
+    categories: ["image", "pdf"],
+    requiredTools: ["tesseract"],
     enabled: true,
   },
 ];

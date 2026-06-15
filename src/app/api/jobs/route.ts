@@ -308,6 +308,8 @@ function extractEngineIdFromCapabilityId(capabilityId: string): string {
     "data-ts",
     "pandoc",
     "qpdf",
+    "calibre",
+    "tesseract",
   ];
 
   for (const prefix of ENGINE_PREFIXES) {

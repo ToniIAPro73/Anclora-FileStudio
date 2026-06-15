@@ -41,7 +41,11 @@ describe("Engine registry — routing", () => {
   it("returns image capabilities for image descriptor", async () => {
     const caps = await getCapabilities(makeDesc("image", "jpeg"));
     expect(caps.length).toBeGreaterThan(0);
-    expect(caps.every((c) => c.engineId === "sharp-image")).toBe(true);
+    // Both sharp-image and tesseract (OCR) may provide capabilities for image category
+    const engineIds = [...new Set(caps.map((c) => c.engineId))];
+    expect(engineIds).toContain("sharp-image");
+    const sharpCaps = caps.filter((c) => c.engineId === "sharp-image");
+    expect(sharpCaps.length).toBeGreaterThan(0);
   });
 
   it("returns data capabilities for structured-data descriptor", async () => {
@@ -53,7 +57,11 @@ describe("Engine registry — routing", () => {
   it("returns pdf capabilities for pdf descriptor", async () => {
     const caps = await getCapabilities(makeDesc("pdf", "pdf"));
     expect(caps.length).toBeGreaterThan(0);
-    expect(caps.every((c) => c.engineId === "qpdf")).toBe(true);
+    // Both qpdf and tesseract (OCR) may provide capabilities for pdf category
+    const engineIds = [...new Set(caps.map((c) => c.engineId))];
+    expect(engineIds).toContain("qpdf");
+    const qpdfCaps = caps.filter((c) => c.engineId === "qpdf");
+    expect(qpdfCaps.length).toBeGreaterThan(0);
   });
 
   it("returns archive capabilities for archive descriptor", async () => {
@@ -168,6 +176,8 @@ describe("Engine registry — diagnoseAllEngines", () => {
     expect(ids).toContain("pandoc");
     expect(ids).toContain("libreoffice");
     expect(ids).toContain("ffmpeg-media");
+    expect(ids).toContain("calibre");
+    expect(ids).toContain("tesseract");
   });
 
   it("each entry has required fields", async () => {
