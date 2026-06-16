@@ -35,6 +35,20 @@ echo "=== Anclora FileStudio — Linux x64 Portable Build ==="
 info "Version: $VERSION | Build: $BUILD_ID | Date: $BUILD_DATE"
 echo ""
 
+# ── Read toolchain.lock.json ──────────────────────────────────────────────────
+LOCKFILE="$SCRIPT_DIR/toolchain.lock.json"
+[[ -f "$LOCKFILE" ]] || die "toolchain.lock.json not found at $LOCKFILE"
+
+NODE_LINUX_VERSION="$(python3 -c "import json; d=json.load(open('$LOCKFILE')); print(d['runtimes']['linux-x64']['version'])")"
+NODE_LINUX_SHA256="$(python3 -c "import json; d=json.load(open('$LOCKFILE')); print(d['runtimes']['linux-x64']['sha256'])")"
+NODE_LINUX_URL="$(python3 -c "import json; d=json.load(open('$LOCKFILE')); print(d['runtimes']['linux-x64']['sourceUrl'])")"
+NODE_ABI_EXPECTED="$(python3 -c "import json; d=json.load(open('$LOCKFILE')); print(d['runtimes']['linux-x64']['abi'])")"
+NODE_LINUX_TAR="node-v${NODE_LINUX_VERSION}-linux-x64.tar.gz"
+NODE_CACHE_DIR="$SCRIPT_DIR/.cache/linux-portable"
+NODE_CACHE="$NODE_CACHE_DIR/$NODE_LINUX_TAR"
+
+info "Toolchain: Node.js v${NODE_LINUX_VERSION} (ABI ${NODE_ABI_EXPECTED})"
+
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 info "Checking prerequisites..."
 
@@ -46,7 +60,7 @@ if ! command -v zstd >/dev/null 2>&1; then
   done
 fi
 command -v zstd >/dev/null 2>&1 || die "zstd not found. Install: sudo apt install zstd"
-command -v node >/dev/null 2>&1 || die "Node.js not found"
+command -v node >/dev/null 2>&1 || die "Node.js not found (needed for build only)"
 command -v pnpm >/dev/null 2>&1 || die "pnpm not found"
 ok "Prerequisites OK (zstd=$(zstd --version | head -1 | grep -oP 'v[\d.]+' || echo ok))"
 
@@ -65,15 +79,45 @@ else
   ok ".next/standalone/server.js already exists — skipping build"
 fi
 
-# ── Detect Node ABI and native module paths ───────────────────────────────────
-NODE_VERSION="$(node --version)"
-NODE_ABI="$(node -e 'console.log(process.versions.modules)')"
-info "Node.js $NODE_VERSION (ABI $NODE_ABI) — linux-x64"
+# ── Download Node.js runtime into cache (before staging wipe) ────────────────
+info "Preparing Node.js v${NODE_LINUX_VERSION} runtime cache..."
+mkdir -p "$NODE_CACHE_DIR"
+
+if [[ ! -f "$NODE_CACHE" ]]; then
+  info "Downloading $NODE_LINUX_TAR from nodejs.org..."
+  curl --fail --location --retry 3 --progress-bar \
+    -o "$NODE_CACHE" "$NODE_LINUX_URL" \
+    || { rm -f "$NODE_CACHE"; die "Failed to download Node.js Linux tarball"; }
+fi
+
+# Verify SHA-256
+ACTUAL_SHA="$(sha256sum "$NODE_CACHE" | awk '{print $1}')"
+if [[ "$ACTUAL_SHA" != "$NODE_LINUX_SHA256" ]]; then
+  die "Node.js tarball SHA-256 mismatch! Expected: $NODE_LINUX_SHA256 Got: $ACTUAL_SHA"
+fi
+ok "Node.js v${NODE_LINUX_VERSION} tarball verified (SHA-256 OK)"
 
 # ── Clean and prepare staging ─────────────────────────────────────────────────
 info "Preparing staging directory..."
 rm -rf "$PACKAGE_DIR"
-mkdir -p "$PACKAGE_DIR"/{app,tools,data,temp,logs,licenses,models}
+mkdir -p "$PACKAGE_DIR"/{app,runtime,tools,data,temp,logs,licenses,models}
+
+# ── Embed Node.js binary into runtime/ ───────────────────────────────────────
+info "Extracting node binary into runtime/..."
+TMP_NODE_EXTRACT="$(mktemp -d)"
+tar -C "$TMP_NODE_EXTRACT" -xzf "$NODE_CACHE" "node-v${NODE_LINUX_VERSION}-linux-x64/bin/node" 2>/dev/null \
+  || die "Failed to extract node binary from tarball"
+cp "$TMP_NODE_EXTRACT/node-v${NODE_LINUX_VERSION}-linux-x64/bin/node" "$PACKAGE_DIR/runtime/node"
+rm -rf "$TMP_NODE_EXTRACT"
+chmod +x "$PACKAGE_DIR/runtime/node"
+file "$PACKAGE_DIR/runtime/node" | grep -q "ELF.*x86-64" || die "runtime/node is not ELF x86-64"
+ok "runtime/node — ELF x86-64 — Node.js v${NODE_LINUX_VERSION}"
+
+# ── Detect ABI using bundled node ─────────────────────────────────────────────
+NODE_VERSION="$("$PACKAGE_DIR/runtime/node" --version)"
+NODE_ABI="$("$PACKAGE_DIR/runtime/node" -e 'console.log(process.versions.modules)')"
+[[ "$NODE_ABI" == "$NODE_ABI_EXPECTED" ]] || warn "ABI mismatch: expected $NODE_ABI_EXPECTED got $NODE_ABI"
+info "Bundled Node.js $NODE_VERSION (ABI $NODE_ABI)"
 
 # ── Copy Next.js standalone (whitelist approach) ──────────────────────────────
 info "Copying Next.js standalone (whitelist)..."
@@ -86,19 +130,25 @@ if [[ -d "$STANDALONE/node_modules" ]]; then
   cp -r "$STANDALONE/node_modules" "$PACKAGE_DIR/app/node_modules"
 fi
 
-# .next build output (server chunks, RSC payload, route manifests)
+# .next build output: copy all of standalone's .next except build cache.
+# IMPORTANT: Do NOT exclude node_modules here — Turbopack places external module
+# stubs in .next/node_modules/ (e.g. better-sqlite3-<hash>, sharp-<hash>) which
+# are required by the server at runtime. This is distinct from the top-level
+# standalone/node_modules/ already copied above.
 mkdir -p "$PACKAGE_DIR/app/.next"
-# Copy server output and config files from .next (NOT cache)
-for subdir in server static app-build-manifest.json build-manifest.json \
-              required-server-files.json routes-manifest.json \
-              prerender-manifest.json react-loadable-manifest.json \
-              images-manifest.json export-marker.json; do
-  SRC="$STANDALONE/.next/$subdir"
-  [[ -e "$SRC" ]] && cp -r "$SRC" "$PACKAGE_DIR/app/.next/" || true
-done
+if [[ -d "$STANDALONE/.next" ]]; then
+  find "$STANDALONE/.next" -mindepth 1 -maxdepth 1 \
+    ! -name "cache" | while read -r item; do
+    cp -r "$item" "$PACKAGE_DIR/app/.next/"
+  done
+fi
 
-# Static assets (client-side JS/CSS bundles and media)
-cp -r "$STATIC_DIR" "$PACKAGE_DIR/app/.next/static"
+# Static assets (client-side JS/CSS bundles) — from the repo's .next/static
+# The standalone .next/static may be absent; the repo's .next/static is authoritative
+if [[ -d "$STATIC_DIR" ]]; then
+  rm -rf "$PACKAGE_DIR/app/.next/static"
+  cp -r "$STATIC_DIR" "$PACKAGE_DIR/app/.next/static"
+fi
 
 # Public directory (robots.txt, icons, etc.)
 if [[ -d "$PUBLIC_DIR" ]]; then
@@ -266,6 +316,15 @@ cat > "$PACKAGE_DIR/start-anclora-filestudio.sh" << 'LAUNCH'
 #!/usr/bin/env bash
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NODE="$DIR/runtime/node"
+
+# Self-contained: use the bundled Node.js runtime
+if [[ ! -x "$NODE" ]]; then
+  echo "[ERROR] runtime/node not found at $NODE"
+  echo "        Re-extract the package from the original archive."
+  exit 1
+fi
+
 export ANCLORA_FILESTUDIO_DATA_DIR="$DIR/data"
 export ANCLORA_FILESTUDIO_TEMP_DIR="$DIR/temp"
 export ANCLORA_FILESTUDIO_LOG_DIR="$DIR/logs"
@@ -303,7 +362,7 @@ fi
 
 cd "$DIR/app"
 echo "Iniciando Anclora FileStudio en http://127.0.0.1:$PORT ..."
-node server.js >> "$DIR/logs/app.log" 2>&1 &
+"$NODE" server.js >> "$DIR/logs/app.log" 2>&1 &
 APP_PID="$!"
 echo "$APP_PID" > "$PID_FILE"
 
@@ -343,23 +402,23 @@ STOP
 cat > "$PACKAGE_DIR/diagnose-anclora-filestudio.sh" << 'DIAG'
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NODE="$DIR/runtime/node"
 echo "=== Anclora FileStudio — Diagnóstico ==="
 echo ""
 echo "--- Directorio ---"
 echo "Raíz: $DIR"
 df -h "$DIR" | tail -1
 echo ""
-echo "--- Runtime ---"
+echo "--- Runtime (bundled) ---"
 if [[ -f "$DIR/app/server.js" ]]; then
   echo "server.js: OK"
 else
   echo "server.js: FALTA"
 fi
-NODE_BIN="$(command -v node 2>/dev/null || echo '')"
-if [[ -n "$NODE_BIN" ]]; then
-  echo "Node.js: $($NODE_BIN --version)"
+if [[ -x "$NODE" ]]; then
+  echo "Node.js (bundled): $("$NODE" --version)"
 else
-  echo "Node.js: NO ENCONTRADO"
+  echo "Node.js (bundled): NO ENCONTRADO (runtime/node)"
 fi
 echo ""
 echo "--- Módulos nativos ---"

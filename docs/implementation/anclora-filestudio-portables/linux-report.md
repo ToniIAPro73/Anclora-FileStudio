@@ -13,58 +13,51 @@ dist/linux/Anclora-FileStudio-Linux-x64.tar.zst.sha256
 
 | Property | Value |
 |----------|-------|
-| Compressed size | 14 MB |
-| Uncompressed size | ~44 MB |
-| SHA-256 | b16192e13543c31fad27bef00fa4dda1a4a4fd5e48467eea25d02be4b93ae571 |
+| Compressed size | 45 MB |
+| SHA-256 | 1812ef9616d321fb4cfa6c47e0b48e305af8b7ed6133f64ec669d7bf583f5fc8 |
+| Bundled Node.js | v22.22.1 (ELF x86-64, ABI 127) |
 | Compression | zstd -T0 -19 |
-| Reproducible tar | ✅ (--sort=name --mtime=@SOURCE_DATE_EPOCH --owner=0 --group=0 --numeric-owner) |
+| Self-contained runtime | ✅ (bundled node binary, no system Node required) |
 
-## Capabilities (12 total)
+## Capabilities
 
 `data`, `image`, `history`, `audio`, `video`, `thumbnail`, `youtube`, `pdf`, `archive`, `document`, `ocr`, `ebook`
 
-All capabilities are derived from ACTUALLY PRESENT system tools — no false advertising.
+All capabilities are derived from ACTUALLY PRESENT tools — no false advertising.
 
-## Verification results
+## Structural Verification (46 checks)
 
 ```
-PASS: 43
+PASS: 46
 WARN: 0
 FAIL: 0
 ```
 
-Checks performed:
-1. Artifact existence (tar.zst + sha256 present)
-2. SHA-256 checksum match
-3. Required files and directories present (10 items)
-4. Executable permissions on .sh scripts
-5. JSON validity (manifest.json, SBOM.cdx.json)
-6. Manifest fields (name, version, buildId, buildDate, commit, platform, arch, capabilities)
-7. Native modules are ELF x86-64 (better_sqlite3.node, sharp.node)
-8. No .dll files (Windows artifacts absent)
-9. No secrets, no .git, no developer paths in launchers
-10. Launcher binds to 127.0.0.1, NOT 0.0.0.0
-11. License files present
+Includes:
 
-## Smoke test results
+- Artifact existence + SHA-256 checksum
+- Required files: server.js, .next/static, manifest.json, runtime/node, etc.
+- ELF x86-64 validation for better_sqlite3.node, sharp.node, runtime/node
+- JSON validity (manifest.json, SBOM.cdx.json)
+- Launcher uses bundled runtime/node (not system node)
+- No .dll files, no .git, no secrets, no developer paths
+- 127.0.0.1 binding, no 0.0.0.0
+
+## Runtime Smoke Test (9/9 PASS)
+
+Executed on WSL2 from a clean temp directory, using bundled node binary only:
 
 ```
-[PASS] start-anclora-filestudio.sh
-[PASS] stop-anclora-filestudio.sh
-[PASS] manifest.json
-[PASS] VERSION.txt
-[PASS] app/server.js
-[PASS] app/.next/static
-[PASS] No developer paths (excl. Next.js build artifacts)
-[PASS] SHA-256 OK
-[PASS] manifest.json is valid JSON
-=== Smoke test PASSED ===
+[PASS] Launcher exited 0 (server started in background with bundled node v22.22.1)
+[PASS] Health: node=v22.22.1, tools=10/10 available
+[PASS] Frontend HTTP 200
+[PASS] History endpoint: SQLite working (0 jobs)
+[PASS] Analyze JSON: kind=universal-file
+[PASS] Analyze PNG: kind=universal-file
+[PASS] PID file exists
+[PASS] Stop OK (clean shutdown)
+[PASS] Persistence after restart
 ```
-
-## Runtime smoke
-
-NOT EXECUTED — server launch requires installing target system dependencies.
-Manual test: extract, run `./start-anclora-filestudio.sh`, check `http://127.0.0.1:3847/api/health`.
 
 ## Issues resolved during build
 
@@ -75,3 +68,6 @@ Manual test: extract, run `./start-anclora-filestudio.sh`, check `http://127.0.0
 | `dist/linux/*.tar.zst` already exists when rebuilding | Added `rm -f` before zstd invocation |
 | Smoke test gave exit 0 when package absent | Changed to `exit 1` with explicit error message |
 | `server.js` contains `outputFileTracingRoot` (build path) | Excluded from dev-path scan (known Next.js artifact) |
+| BUILD_ID missing → "Could not find a production build" | Changed .next copy to use `find ! -name "cache"` (keep all other subdirs) |
+| Turbopack `.next/node_modules/` excluded from copy | Removed `! -name "node_modules"` filter for `.next/` copy; Turbopack places `better-sqlite3-<hash>` and `sharp-<hash>` stubs there — required at runtime |
+| Node.js was not bundled — depended on system node | Download Node.js v22.22.1 from nodejs.org, verify SHA-256, include as `runtime/node` |

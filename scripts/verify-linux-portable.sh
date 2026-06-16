@@ -97,7 +97,8 @@ for f in \
   "THIRD_PARTY_NOTICES.txt" \
   "SBOM.cdx.json" \
   "app/server.js" \
-  "app/.next/static"; do
+  "app/.next/static" \
+  "runtime/node"; do
   if [[ -e "$PKG/$f" ]]; then
     echo -e "${GREEN}[PASS]${NC} $f"
     (( PASS++ )) || true
@@ -146,6 +147,32 @@ PLATFORM="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['platfor
 
 ARCH="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['arch'])" 2>/dev/null || echo '')"
 [[ "$ARCH" == "x64" ]] && { echo -e "${GREEN}[PASS]${NC} arch=x64"; (( PASS++ )) || true; } || { echo -e "${RED}[FAIL]${NC} arch != x64 (got: $ARCH)"; (( FAIL++ )) || true; }
+
+# ── 6b. Bundled Node.js runtime ───────────────────────────────────────────────
+echo ""
+echo "--- 6b. Bundled Node.js runtime ---"
+NODE_BIN="$PKG/runtime/node"
+if [[ -f "$NODE_BIN" ]] && [[ -x "$NODE_BIN" ]]; then
+  if file "$NODE_BIN" | grep -q "ELF.*x86-64"; then
+    NODE_VER="$("$NODE_BIN" --version 2>/dev/null || echo unknown)"
+    echo -e "${GREEN}[PASS]${NC} runtime/node: ELF x86-64 — $NODE_VER"
+    (( PASS++ )) || true
+    # Check launcher uses bundled node
+    if grep -q '"$NODE" server.js\|runtime/node' "$PKG/start-anclora-filestudio.sh" 2>/dev/null; then
+      echo -e "${GREEN}[PASS]${NC} Launcher uses bundled node"
+      (( PASS++ )) || true
+    else
+      echo -e "${RED}[FAIL]${NC} Launcher does NOT reference bundled runtime/node"
+      (( FAIL++ )) || true
+    fi
+  else
+    echo -e "${RED}[FAIL]${NC} runtime/node is NOT ELF x86-64"
+    (( FAIL++ )) || true
+  fi
+else
+  echo -e "${RED}[FAIL]${NC} runtime/node missing or not executable"
+  (( FAIL++ )) || true
+fi
 
 # ── 7. Native modules — Linux ELF x86-64 ─────────────────────────────────────
 echo ""
