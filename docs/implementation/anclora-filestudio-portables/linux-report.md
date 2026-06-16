@@ -15,7 +15,7 @@ dist/linux/Anclora-FileStudio-Linux-x64.tar.zst.sha256
 | Property    | Value                                                            |
 |-------------|------------------------------------------------------------------|
 | Size        | 51 MB                                                            |
-| SHA-256     | 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d |
+| SHA-256     | 719bd5e88518400e6385ccadcf8d230e3f1876d41e1be7799049562cfb60dd79 |
 | Compression | zstd level 19                                                    |
 
 ## Issues fixed in this build
@@ -54,7 +54,7 @@ Fixed to report `sharp@0.35.1` (Sharp npm package version) with libvips in `bina
 ```text
 [PASS] tar.zst exists: 51M
 [PASS] sha256 file exists
-[PASS] SHA-256 OK: 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d
+[PASS] SHA-256 OK: 719bd5e88518400e6385ccadcf8d230e3f1876d41e1be7799049562cfb60dd79
 [PASS] start-anclora-filestudio.sh
 [PASS] stop-anclora-filestudio.sh
 [PASS] diagnose-anclora-filestudio.sh
@@ -97,17 +97,50 @@ Fixed to report `sharp@0.35.1` (Sharp npm package version) with libvips in `bina
 
 | Check | Result |
 | --- | --- |
-| SHA-256 match | PASS - 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d |
+| SHA-256 match | PASS - 719bd5e88518400e6385ccadcf8d230e3f1876d41e1be7799049562cfb60dd79 |
 | runtime/node version | PASS - v22.22.1 ELF x86-64 |
 | libvips-cpp.so.8.18.3 (real file, 17MB, ELF x86-64) | PASS |
 | Sharp loads: sharp=0.35.1, vips=8.18.3 | PASS |
-| PNG-to-WebP conversion (bundled node, 68 bytes output) | PASS |
+| PNG-to-WebP (bundled node, 68 bytes output) | PASS |
+| PNG-to-WebP via real /api/jobs flow | PASS - 772 bytes, RIFF/WEBP magic confirmed |
 | Health endpoint: ok=true, nodeVersion=v22.22.1, 10/10 tools | PASS |
 | Sharp engine version in health: 0.35.1 (not 8.18.3) | PASS |
-| JSON-to-YAML conversion (data-ts engine) | PASS |
-| WAV-to-MP3 conversion (ffmpeg engine) | PASS |
-| SQLite persistence across restart (2 jobs) | PASS |
+| JSON-to-YAML conversion (data-ts engine, /api/jobs) | PASS |
+| WAV-to-MP3 conversion (ffmpeg engine, /api/jobs) | PASS |
+| SQLite persistence across restart (job persisted) | PASS |
 | Clean stop (port released, no residual processes) | PASS |
+
+## Tool provenance
+
+The portable is a hybrid package. Two components are fully bundled inside the TAR; the rest are detected from the host system at build time and their capabilities are included only if the tool is present.
+
+### Bundled inside the TAR (no host dependency)
+
+| Component | Version | Source |
+| --- | --- | --- |
+| Node.js runtime | v22.22.1 | Downloaded from nodejs.org, SHA-256 verified |
+| Sharp image engine | 0.35.1 | npm pnpm store, ELF x86-64 `.node` file |
+| libvips | 8.18.3 | npm pnpm store, `libvips-cpp.so.8.18.3` (17 MB, ELF x86-64) |
+| better-sqlite3 | 12.10.1 | npm pnpm store, ELF x86-64 `.node` file |
+| Data engine (JSON/YAML/TOML/XML/CSV) | TypeScript-native | Compiled into `server.js` bundle, no binary |
+
+### Required from host system (NOT bundled)
+
+These are detected on the build host at packaging time. The manifest records their versions and the launchers add them to `PATH`. On a target machine without these tools, the corresponding capabilities are absent — the app starts but those features are unavailable.
+
+| Tool | Purpose | Capability |
+| --- | --- | --- |
+| ffmpeg + ffprobe | Audio/video conversion, thumbnails | audio, video, thumbnail |
+| yt-dlp | YouTube download | youtube |
+| qpdf | PDF linearize, extract pages | pdf |
+| 7z / 7zz | Archive repack/extract | archive |
+| pandoc | Document conversion (md, html, docx, odt) | document |
+| tesseract | OCR image-to-text / searchable PDF | ocr |
+| pdftoppm (poppler) | PDF-to-image for OCR pipeline | ocr-pdf |
+| calibredb / ebook-convert | eBook conversion | ebook |
+| libreoffice | Office-to-PDF, ODF/OOXML cross-conversion | office-conversion |
+
+On the acceptance test host all 10 system tools were available, so all 12 capabilities were active.
 
 ## Security constraints met
 

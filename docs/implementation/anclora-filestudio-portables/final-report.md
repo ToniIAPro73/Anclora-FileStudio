@@ -24,7 +24,7 @@ Branch: `build/anclora-filestudio-portables`
 ```text
 dist/linux/Anclora-FileStudio-Linux-x64.tar.zst  (51 MB)
 dist/linux/Anclora-FileStudio-Linux-x64.tar.zst.sha256
-SHA-256: 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d
+SHA-256: 719bd5e88518400e6385ccadcf8d230e3f1876d41e1be7799049562cfb60dd79
 ```
 
 Bundled Node.js v22.22.1 (ELF x86-64, ABI 127) — no system Node required.

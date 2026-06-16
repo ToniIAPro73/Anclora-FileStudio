@@ -17,7 +17,8 @@
 | Sharp ldd (no not found)      | `verify-linux-portable.sh` s7b | PASS   | all dynamic deps resolved                              |
 | Sharp loads (bundled node)    | `verify-linux-portable.sh` s7b | PASS   | sharp=0.35.1 vips=8.18.3                               |
 | PNG-to-WebP (bundled node)    | `smoke-linux-portable.sh`      | PASS   | 4x4 = 68 bytes WebP                                    |
-| Independent SHA-256           | manual                         | PASS   | 7377e82b... matches                                    |
+| PNG-to-WebP via /api/jobs     | runtime E2E                    | PASS   | 16x16 = 772 bytes, RIFF/WEBP magic confirmed           |
+| Independent SHA-256           | manual                         | PASS   | 719bd5e8... matches                                    |
 | Independent Sharp load        | manual                         | PASS   | sharp=0.35.1, vips=8.18.3                              |
 | Independent health            | manual                         | PASS   | ok=true, nodeVersion=v22.22.1                          |
 
