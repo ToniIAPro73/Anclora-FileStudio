@@ -59,8 +59,20 @@ if [[ -n "$SEVENZIP" ]]; then
     "INICIAR_ANCLORA_FILESTUDIO.bat" \
     "CERRAR_ANCLORA_FILESTUDIO.bat" \
     "manifest.json" \
-    "app/node.exe" \
-    "app/server.js"; do
+    "VERSION.txt" \
+    "THIRD_PARTY_NOTICES.txt" \
+    "SBOM.cdx.json" \
+    "runtime/node.exe" \
+    "tools/yt-dlp/yt-dlp.exe" \
+    "tools/ffmpeg/ffmpeg.exe" \
+    "tools/ffmpeg/ffprobe.exe" \
+    "tools/pandoc/pandoc.exe" \
+    "tools/qpdf/qpdf.exe" \
+    "internal/start-anclora-filestudio.ps1" \
+    "internal/stop-anclora-filestudio.ps1" \
+    "app/server.js" \
+    "app/.next/static" \
+    "app/node_modules/better-sqlite3/build/Release/better_sqlite3.node"; do
     if [[ -e "$PKG/$f" ]]; then
       echo "[PASS] $f"
     else
@@ -70,13 +82,19 @@ if [[ -n "$SEVENZIP" ]]; then
   done
 
   # Developer paths
+  # Exclude Next.js build artifacts that bake in outputFileTracingRoot:
+  #   required-server-files.json, server.js — these contain /home/... paths by design.
   DEV_PATTERN="/home/toni|/home/antonio|convertidor_youtube_mp3"
-  if grep -rqE "$DEV_PATTERN" "$TMP_DIR" --include="*.bat" --include="*.ps1" --include="*.json" 2>/dev/null; then
+  if grep -rqE "$DEV_PATTERN" "$TMP_DIR" \
+       --include="*.bat" --include="*.ps1" --include="*.json" \
+       --exclude="required-server-files.json" --exclude="server.js" 2>/dev/null; then
     echo "[FAIL] Developer paths found in package"
-    grep -rE "$DEV_PATTERN" "$TMP_DIR" --include="*.bat" --include="*.ps1" --include="*.json" 2>/dev/null | head -5
+    grep -rE "$DEV_PATTERN" "$TMP_DIR" \
+       --include="*.bat" --include="*.ps1" --include="*.json" \
+       --exclude="required-server-files.json" --exclude="server.js" 2>/dev/null | head -5
     (( FAIL++ )) || true
   else
-    echo "[PASS] No developer paths"
+    echo "[PASS] No developer paths (Next.js build artifacts excluded)"
   fi
 
   # platform check in manifest

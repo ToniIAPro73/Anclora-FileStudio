@@ -86,8 +86,8 @@
           "version": "BtbN-master-latest",
           "provider": "https://github.com/BtbN/FFmpeg-Builds",
           "sourceUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
-          "sha256": "59d0c0521923680db93ca7fbebb26e85ed292830b7a23b9d568eb778bb78270d",
-          "note": "BtbN builds are rolling. SHA recorded at lockfile time 2026-06-14."
+          "sha256": "239cb6c6e4a39c53a51040b51baf7d744d4a57341101431a06dd4f8181bc1800",
+          "note": "BtbN builds are rolling. SHA recorded at lockfile time 2026-06-16."
         }
       }
     },
