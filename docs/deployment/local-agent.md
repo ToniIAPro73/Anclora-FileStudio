@@ -18,4 +18,5 @@ ANCLORA_AGENT_POLICY=ask-always
 ANCLORA_AGENT_STORE_KEY=
 ```
 
-The portable fallback credential store uses AES-256-GCM and file mode `0600`. Native OS keychain adapters remain the recommended production hardening step, but plaintext storage is not supported.
+The portable fallback credential store uses AES-256-GCM and file mode `0600`. Native OS keychain
+adapters remain the recommended production hardening step, but plaintext storage is not supported.

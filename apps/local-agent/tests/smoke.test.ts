@@ -80,7 +80,7 @@ describe("Local Agent smoke", () => {
     const credentials: AgentCredentials = {
       deviceId: "dev_smoke",
       accessToken: "test-token",
-      refreshToken: "refresh-fixture",
+      refreshToken: "local-agent-refresh-fixture",
       accessTokenExpiresAt: Date.now() + 600_000,
       refreshTokenExpiresAt: Date.now() + 86_400_000,
       serverBaseUrl: baseUrl,
