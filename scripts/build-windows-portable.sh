@@ -408,6 +408,41 @@ print(f"  {copied} packages flattened to node_modules/")
 PYEOF
 ok "node_modules flattened"
 
+# ── Fix truncated JS dependency stubs ────────────────────────────────────────
+# Next.js standalone traces its own bundled semver (next/dist/compiled/semver) and
+# leaves semver@7.8.1 as a stub in the pnpm flat namespace — only package.json,
+# no index.js. Sharp@0.35.1 requires semver@^7.8.4 (full package). We replace the
+# stub with the full semver@7.8.4 from the repo pnpm store before removing .pnpm.
+info "Fixing truncated semver stub..."
+SEMVER_IN_PKG="$APP_DIR/node_modules/semver"
+SEMVER_FULL_SRC="$REPO_ROOT/node_modules/.pnpm/semver@7.8.4/node_modules/semver"
+
+if [[ ! -f "$SEMVER_IN_PKG/index.js" ]]; then
+  if [[ ! -d "$SEMVER_FULL_SRC" ]] || [[ ! -f "$SEMVER_FULL_SRC/index.js" ]]; then
+    die "Full semver@7.8.4 not found in pnpm store: $SEMVER_FULL_SRC"
+  fi
+  info "  Replacing semver stub (7.8.1 stub → 7.8.4 full)..."
+  rm -rf "$SEMVER_IN_PKG"
+  cp -r "$SEMVER_FULL_SRC" "$SEMVER_IN_PKG"
+  ok "semver stub replaced with full semver@7.8.4"
+else
+  SEMVER_VER="$(python3 -c "import json; print(json.load(open('$SEMVER_IN_PKG/package.json')).get('version','?'))" 2>/dev/null || echo "?")"
+  ok "semver/index.js already present (v${SEMVER_VER}) — no stub fix needed"
+fi
+
+# Validate semver completeness
+for _semver_req_file in \
+  "index.js" \
+  "classes/semver.js" \
+  "classes/range.js" \
+  "functions/parse.js" \
+  "internal/re.js" \
+  "ranges/valid.js"; do
+  [[ -f "$SEMVER_IN_PKG/$_semver_req_file" ]] \
+    || die "semver validation failed — missing: $SEMVER_IN_PKG/$_semver_req_file"
+done
+ok "semver package validated (all required files present)"
+
 info "Removing .pnpm store (prevents deep paths on Windows)..."
 rm -rf "$APP_DIR/node_modules/.pnpm"
 ok ".pnpm store removed"

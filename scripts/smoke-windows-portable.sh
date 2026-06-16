@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# smoke-windows-portable.sh — Structural smoke test for the Windows portable (WSL).
-# Fails with exit 1 when the package is missing. Does NOT launch the app.
+# smoke-windows-portable.sh — Structural + native acceptance smoke test for Windows portable.
+# Structural checks run from WSL.
+# Native acceptance (runtime/sqlite/sharp/webp) runs via powershell.exe when available.
+# Fails with exit 1 when the package is missing.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ZIP="$REPO_ROOT/dist/windows/Anclora-FileStudio-Windows-x64-Core.zip"
+PS1_SMOKE="$SCRIPT_DIR/smoke-windows-portable.ps1"
 
 # ── Artifact must exist — no false-positive SKIP ──────────────────────────────
 if [[ ! -f "$ZIP" ]]; then
@@ -16,19 +19,10 @@ fi
 
 echo "=== Smoke test — Windows portable ==="
 echo "Package: $(du -sh "$ZIP" | awk '{print $1}') → $ZIP"
-
-# ── 7z required ───────────────────────────────────────────────────────────────
-SEVENZIP=""
-for c in 7zz 7z; do
-  command -v "$c" >/dev/null 2>&1 && { SEVENZIP="$c"; break; } || true
-done
-if [[ -z "$SEVENZIP" ]]; then
-  echo "[SKIP] 7z/7zz not available in WSL — cannot extract ZIP for inspection"
-  echo "       Install with: sudo apt install p7zip-full"
-  echo "       Structural smoke skipped; SHA-256 check still runs."
-fi
+echo ""
 
 FAIL=0
+PASS=0
 
 # ── Checksum ──────────────────────────────────────────────────────────────────
 SHA_FILE="$ZIP.sha256"
@@ -36,54 +30,81 @@ if [[ -f "$SHA_FILE" ]]; then
   cd "$(dirname "$ZIP")"
   if sha256sum -c "$(basename "$SHA_FILE")" >/dev/null 2>&1; then
     echo "[PASS] SHA-256 OK"
+    PASS=$((PASS+1))
   else
     echo "[FAIL] SHA-256 mismatch"
-    (( FAIL++ )) || true
+    FAIL=$((FAIL+1))
   fi
+  cd "$REPO_ROOT"
 else
   echo "[FAIL] .sha256 file missing"
-  (( FAIL++ )) || true
+  FAIL=$((FAIL+1))
 fi
 
 # ── ZIP extraction (only if 7z available) ────────────────────────────────────
+SEVENZIP=""
+for c in 7zz 7z; do
+  command -v "$c" >/dev/null 2>&1 && { SEVENZIP="$c"; break; } || true
+done
+
 if [[ -n "$SEVENZIP" ]]; then
   TMP_DIR="$(mktemp -d)"
   trap "rm -rf '$TMP_DIR'" EXIT
 
-  echo "Extracting with $SEVENZIP..."
+  echo "Extracting with $SEVENZIP for structural check..."
   "$SEVENZIP" x "$ZIP" -o"$TMP_DIR" -y >/dev/null 2>&1
 
   PKG="$TMP_DIR/Anclora-FileStudio-Windows-x64-Core"
 
-  for f in \
-    "INICIAR_ANCLORA_FILESTUDIO.bat" \
-    "CERRAR_ANCLORA_FILESTUDIO.bat" \
-    "manifest.json" \
-    "VERSION.txt" \
-    "THIRD_PARTY_NOTICES.txt" \
-    "SBOM.cdx.json" \
-    "runtime/node.exe" \
-    "tools/yt-dlp/yt-dlp.exe" \
-    "tools/ffmpeg/ffmpeg.exe" \
-    "tools/ffmpeg/ffprobe.exe" \
-    "tools/pandoc/pandoc.exe" \
-    "tools/qpdf/qpdf.exe" \
-    "internal/start-anclora-filestudio.ps1" \
-    "internal/stop-anclora-filestudio.ps1" \
-    "app/server.js" \
-    "app/.next/static" \
-    "app/node_modules/better-sqlite3/build/Release/better_sqlite3.node"; do
+  STRUCTURAL_FILES=(
+    "INICIAR_ANCLORA_FILESTUDIO.bat"
+    "CERRAR_ANCLORA_FILESTUDIO.bat"
+    "manifest.json"
+    "VERSION.txt"
+    "THIRD_PARTY_NOTICES.txt"
+    "SBOM.cdx.json"
+    "runtime/node.exe"
+    "tools/yt-dlp/yt-dlp.exe"
+    "tools/ffmpeg/ffmpeg.exe"
+    "tools/ffmpeg/ffprobe.exe"
+    "tools/pandoc/pandoc.exe"
+    "tools/qpdf/qpdf.exe"
+    "internal/start-anclora-filestudio.ps1"
+    "internal/stop-anclora-filestudio.ps1"
+    "app/server.js"
+    "app/.next/static"
+    "app/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+    "app/node_modules/@img/sharp-win32-x64/lib/sharp-win32-x64-0.35.1.node"
+    "app/node_modules/@img/sharp-win32-x64/lib/libvips-42.dll"
+    "app/node_modules/@img/sharp-win32-x64/lib/libvips-cpp-8.18.3.dll"
+    "app/node_modules/semver/index.js"
+  )
+
+  echo ""
+  echo "--- Structural checks ---"
+  for f in "${STRUCTURAL_FILES[@]}"; do
     if [[ -e "$PKG/$f" ]]; then
       echo "[PASS] $f"
+      PASS=$((PASS+1))
     else
       echo "[FAIL] Missing: $f"
-      (( FAIL++ )) || true
+      FAIL=$((FAIL+1))
     fi
   done
 
-  # Developer paths
-  # Exclude Next.js build artifacts that bake in outputFileTracingRoot:
-  #   required-server-files.json, server.js — these contain /home/... paths by design.
+  # semver version check
+  if [[ -f "$PKG/app/node_modules/semver/package.json" ]]; then
+    SEMVER_VER="$(python3 -c "import json; print(json.load(open('$PKG/app/node_modules/semver/package.json')).get('version','?'))" 2>/dev/null || echo '?')"
+    echo "[INFO] semver version in package: $SEMVER_VER"
+    if [[ "$SEMVER_VER" == "7.8.4" ]]; then
+      echo "[PASS] semver@7.8.4 (Sharp compatible)"
+      PASS=$((PASS+1))
+    else
+      echo "[WARN] semver@$SEMVER_VER (expected 7.8.4)"
+    fi
+  fi
+
+  # Developer paths check
   DEV_PATTERN="/home/toni|/home/antonio|convertidor_youtube_mp3"
   if grep -rqE "$DEV_PATTERN" "$TMP_DIR" \
        --include="*.bat" --include="*.ps1" --include="*.json" \
@@ -92,25 +113,113 @@ if [[ -n "$SEVENZIP" ]]; then
     grep -rE "$DEV_PATTERN" "$TMP_DIR" \
        --include="*.bat" --include="*.ps1" --include="*.json" \
        --exclude="required-server-files.json" --exclude="server.js" 2>/dev/null | head -5
-    (( FAIL++ )) || true
+    FAIL=$((FAIL+1))
   else
     echo "[PASS] No developer paths (Next.js build artifacts excluded)"
+    PASS=$((PASS+1))
   fi
 
-  # platform check in manifest
+  # platform=windows check
   PLATFORM="$(python3 -c "import json; print(json.load(open('$PKG/manifest.json'))['platform'])" 2>/dev/null || echo '')"
   if [[ "$PLATFORM" == "windows" ]]; then
     echo "[PASS] manifest.platform=windows"
+    PASS=$((PASS+1))
   else
     echo "[FAIL] manifest.platform != windows (got: '$PLATFORM')"
-    (( FAIL++ )) || true
+    FAIL=$((FAIL+1))
+  fi
+
+  # no Linux binaries
+  LINUX_BINS="$(find "$PKG/app" \( -name "*.so" -o -name "*.dylib" \) 2>/dev/null || true)"
+  if [[ -n "$LINUX_BINS" ]]; then
+    echo "[FAIL] Linux binaries found in app/:"
+    echo "$LINUX_BINS" | head -5
+    FAIL=$((FAIL+1))
+  else
+    echo "[PASS] No Linux .so/.dylib in app/"
+    PASS=$((PASS+1))
+  fi
+
+  echo ""
+  echo "--- Structural: $PASS PASS, $FAIL FAIL ---"
+else
+  echo "[SKIP] 7z/7zz not available — structural extraction skipped"
+  echo "       Install: sudo apt install p7zip-full"
+fi
+
+# ── Native acceptance via powershell.exe ──────────────────────────────────────
+echo ""
+echo "--- Native acceptance test ---"
+
+if ! command -v powershell.exe >/dev/null 2>&1; then
+  echo "[SKIP] powershell.exe not available in WSL — native test skipped"
+  echo "       The native test must be run manually on a Windows machine:"
+  echo "       powershell.exe -ExecutionPolicy Bypass -File smoke-windows-portable.ps1 -ZipPath <path>"
+else
+  # Get Windows TEMP dir
+  WIN_TEMP="$(powershell.exe -NoProfile -NonInteractive -Command '$env:TEMP' 2>/dev/null | tr -d '\r\n')"
+  if [[ -z "$WIN_TEMP" ]]; then
+    echo "[WARN] Could not determine Windows TEMP — using C:\\Temp"
+    WIN_TEMP="C:\\Temp"
+  fi
+
+  SMOKE_ID="$(date +%s)"
+  WIN_SMOKE_COPY="${WIN_TEMP}\\Anclora-WinSmoke-${SMOKE_ID}"
+
+  # Convert WSL ZIP path to Windows UNC for copy operation only
+  WIN_ZIP_SRC="$(wslpath -w "$ZIP" 2>/dev/null || true)"
+  WIN_PS1_SRC="$(wslpath -w "$PS1_SMOKE" 2>/dev/null || true)"
+
+  if [[ -z "$WIN_ZIP_SRC" ]] || [[ -z "$WIN_PS1_SRC" ]]; then
+    echo "[WARN] wslpath conversion failed — native test skipped"
+    echo "       Ensure wsl.exe interop is enabled."
+  else
+    echo "[INFO] Copying ZIP and PS1 to Windows TEMP (to avoid UNC execution)..."
+    # PowerShell 5 (powershell.exe) requires CRLF line endings for here-strings.
+    # Create a CRLF copy of the PS1 in WSL /tmp before copying to Windows.
+    TMP_PS1_CRLF="$(mktemp /tmp/anclora-smoke-XXXXXX.ps1)"
+    sed 's/$/\r/' "$PS1_SMOKE" > "$TMP_PS1_CRLF"
+    WIN_PS1_SRC_CRLF="$(wslpath -w "$TMP_PS1_CRLF" 2>/dev/null || true)"
+
+    # Copy ZIP and PS1 to a Windows TEMP folder so execution is on local drive
+    powershell.exe -NoProfile -NonInteractive -Command "
+      New-Item -ItemType Directory -Force -Path '$WIN_SMOKE_COPY' | Out-Null;
+      Copy-Item -Path '$WIN_ZIP_SRC' -Destination '$WIN_SMOKE_COPY\\package.zip';
+      Copy-Item -Path '$WIN_PS1_SRC_CRLF' -Destination '$WIN_SMOKE_COPY\\smoke.ps1';
+      Write-Host 'Copy OK'
+    " 2>&1 | grep -v '^$' || {
+      echo "[WARN] Copy to Windows TEMP failed — native test skipped"
+      rm -f "$TMP_PS1_CRLF"
+      FAIL=$((FAIL+1))
+    }
+    rm -f "$TMP_PS1_CRLF" 2>/dev/null || true
+
+    WIN_ZIP_LOCAL="${WIN_SMOKE_COPY}\\package.zip"
+    WIN_PS1_LOCAL="${WIN_SMOKE_COPY}\\smoke.ps1"
+
+    echo "[INFO] Executing native acceptance test via powershell.exe..."
+    if powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$WIN_PS1_LOCAL" -ZipPath "$WIN_ZIP_LOCAL"; then
+      echo "[PASS] NATIVE_ACCEPTANCE_WINDOWS_PASS"
+      PASS=$((PASS+1))
+    else
+      echo "[FAIL] NATIVE_ACCEPTANCE_WINDOWS_FAIL"
+      FAIL=$((FAIL+1))
+    fi
+
+    # Clean up the copy in Windows TEMP
+    powershell.exe -NoProfile -NonInteractive -Command \
+      "Remove-Item -Recurse -Force '$WIN_SMOKE_COPY' -ErrorAction SilentlyContinue" \
+      2>/dev/null || true
   fi
 fi
 
+# ── Final result ──────────────────────────────────────────────────────────────
 echo ""
+TOTAL=$((PASS + FAIL))
 if [[ "$FAIL" -gt 0 ]]; then
-  echo "=== Smoke test FAILED ($FAIL issue(s)) ==="
+  echo "=== Smoke test FAILED ($FAIL/$TOTAL failed) ==="
   exit 1
 else
-  echo "=== Smoke test PASSED ==="
+  echo "=== Smoke test PASSED ($PASS/$TOTAL checks) ==="
 fi
