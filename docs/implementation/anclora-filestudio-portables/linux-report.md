@@ -15,7 +15,7 @@ dist/linux/Anclora-FileStudio-Linux-x64.tar.zst.sha256
 | Property    | Value                                                            |
 |-------------|------------------------------------------------------------------|
 | Size        | 51 MB                                                            |
-| SHA-256     | 8160c05fc4170e408459dd3e30d995fa3c9b41964b40e05be8d76a8598376738 |
+| SHA-256     | 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d |
 | Compression | zstd level 19                                                    |
 
 ## Issues fixed in this build
@@ -54,7 +54,7 @@ Fixed to report `sharp@0.35.1` (Sharp npm package version) with libvips in `bina
 ```text
 [PASS] tar.zst exists: 51M
 [PASS] sha256 file exists
-[PASS] SHA-256 OK: 8160c05fc4170e408459dd3e30d995fa3c9b41964b40e05be8d76a8598376738
+[PASS] SHA-256 OK: 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d
 [PASS] start-anclora-filestudio.sh
 [PASS] stop-anclora-filestudio.sh
 [PASS] diagnose-anclora-filestudio.sh
@@ -97,13 +97,17 @@ Fixed to report `sharp@0.35.1` (Sharp npm package version) with libvips in `bina
 
 | Check | Result |
 | --- | --- |
-| SHA-256 match | PASS |
+| SHA-256 match | PASS - 7377e82bc1897d2fa07b4d10fae91abefb43cbf5f8ec782c081e266c70056a5d |
 | runtime/node version | PASS - v22.22.1 ELF x86-64 |
-| libvips-cpp.so.8.18.3 (real file, 18MB, ELF x86-64) | PASS |
+| libvips-cpp.so.8.18.3 (real file, 17MB, ELF x86-64) | PASS |
 | Sharp loads: sharp=0.35.1, vips=8.18.3 | PASS |
-| PNG-to-WebP conversion (8x8, 70 bytes output) | PASS |
-| Health endpoint: ok=true, nodeVersion=v22.22.1 | PASS |
-| History endpoint (SQLite) | PASS |
+| PNG-to-WebP conversion (bundled node, 68 bytes output) | PASS |
+| Health endpoint: ok=true, nodeVersion=v22.22.1, 10/10 tools | PASS |
+| Sharp engine version in health: 0.35.1 (not 8.18.3) | PASS |
+| JSON-to-YAML conversion (data-ts engine) | PASS |
+| WAV-to-MP3 conversion (ffmpeg engine) | PASS |
+| SQLite persistence across restart (2 jobs) | PASS |
+| Clean stop (port released, no residual processes) | PASS |
 
 ## Security constraints met
 
