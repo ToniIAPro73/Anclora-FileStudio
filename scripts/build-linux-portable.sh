@@ -189,23 +189,75 @@ else
   warn "better_sqlite3.node not found in package — SQLite persistence disabled"
 fi
 
-# Sharp: verify linux-x64 binding
-SHARP_NODE=$(find "$PACKAGE_DIR/app" -name "sharp*.node" -type f 2>/dev/null | head -1)
-if [[ -z "$SHARP_NODE" ]]; then
-  SHARP_SRC=$(find "$REPO_ROOT/node_modules/sharp/build/Release" -name "sharp*.node" -type f 2>/dev/null | head -1)
-  if [[ -n "$SHARP_SRC" ]]; then
-    mkdir -p "$PACKAGE_DIR/app/node_modules/sharp/build/Release"
-    cp "$SHARP_SRC" "$PACKAGE_DIR/app/node_modules/sharp/build/Release/"
-    SHARP_NODE="$PACKAGE_DIR/app/node_modules/sharp/build/Release/$(basename "$SHARP_SRC")"
+# ── Sharp 0.35.1 + libvips 8.18.3: mandatory packaging from pnpm store ────────
+# Root cause: Next.js standalone output trace copies .next/standalone/node_modules/
+# but does NOT follow .so files. The @img+sharp-libvips-linux-x64@1.3.0/lib/
+# directory in standalone only contains index.js — libvips-cpp.so.8.18.3 (17MB)
+# is missing. We must supplement the package with the complete lib/ from pnpm.
+info "Packaging Sharp 0.35.1 + libvips 8.18.3 from pnpm store (mandatory)..."
+
+PNPM_STORE="$REPO_ROOT/node_modules/.pnpm"
+LIBVIPS_SRC="$PNPM_STORE/@img+sharp-libvips-linux-x64@1.3.0/node_modules/@img/sharp-libvips-linux-x64"
+SHARP_X64_SRC="$PNPM_STORE/@img+sharp-linux-x64@0.35.1/node_modules/@img/sharp-linux-x64"
+
+SHARP_NODE_SRC="$SHARP_X64_SRC/lib/sharp-linux-x64-0.35.1.node"
+LIBVIPS_SO_SRC="$LIBVIPS_SRC/lib/libvips-cpp.so.8.18.3"
+
+# Hard fail if sources are missing — do not silently degrade
+[[ -f "$SHARP_NODE_SRC" ]] || die "MISSING: $SHARP_NODE_SRC — run 'pnpm install --frozen-lockfile'"
+[[ -f "$LIBVIPS_SO_SRC" ]] || die "MISSING: $LIBVIPS_SO_SRC — run 'pnpm install --frozen-lockfile'"
+
+# Validate source files are ELF x86-64 before copying
+file "$SHARP_NODE_SRC" | grep -q "ELF.*x86-64" || die "sharp-linux-x64-0.35.1.node source is not ELF x86-64"
+file "$LIBVIPS_SO_SRC" | grep -q "ELF.*x86-64" || die "libvips-cpp.so.8.18.3 source is not ELF x86-64"
+
+# Destination: mirror pnpm structure already present from standalone copy
+LIBVIPS_PKG="$PACKAGE_DIR/app/node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.3.0/node_modules/@img/sharp-libvips-linux-x64"
+mkdir -p "$LIBVIPS_PKG/lib"
+
+# Overwrite the incomplete lib/ (which only has index.js from standalone trace)
+# with the complete version from pnpm — this physically places the .so in the package.
+# Do NOT use symlinks here: the .so must be a real file, not a pointer outside the package.
+cp -a "$LIBVIPS_SRC/lib/." "$LIBVIPS_PKG/lib/"
+
+# The standalone output does NOT copy the pnpm intra-package symlink:
+#   @img+sharp-linux-x64@0.35.1/node_modules/@img/sharp-libvips-linux-x64
+#     -> ../../../@img+sharp-libvips-linux-x64@1.3.0/node_modules/@img/sharp-libvips-linux-x64
+# This symlink is in the RPATH of sharp-linux-x64-0.35.1.node ($ORIGIN/../../sharp-libvips-linux-x64/lib/).
+# Without it the dynamic linker cannot find libvips-cpp.so.8.18.3 at runtime.
+# We recreate the same relative symlink that pnpm uses.
+SHARP_X64_IMG_DIR="$PACKAGE_DIR/app/node_modules/.pnpm/@img+sharp-linux-x64@0.35.1/node_modules/@img"
+mkdir -p "$SHARP_X64_IMG_DIR"
+LIBVIPS_SYMLINK="$SHARP_X64_IMG_DIR/sharp-libvips-linux-x64"
+if [[ ! -e "$LIBVIPS_SYMLINK" ]] && [[ ! -L "$LIBVIPS_SYMLINK" ]]; then
+  ln -s "../../../@img+sharp-libvips-linux-x64@1.3.0/node_modules/@img/sharp-libvips-linux-x64" "$LIBVIPS_SYMLINK"
+  info "Created sharp-libvips-linux-x64 symlink in @img+sharp-linux-x64@0.35.1"
+fi
+
+# Mandatory post-copy validation
+LIBVIPS_SO_PKG="$LIBVIPS_PKG/lib/libvips-cpp.so.8.18.3"
+[[ -f "$LIBVIPS_SO_PKG" ]] || die "libvips-cpp.so.8.18.3 still missing after copy — check pnpm store"
+[[ -L "$LIBVIPS_SO_PKG" ]] && die "libvips-cpp.so.8.18.3 is a symlink — must be a real file in the package"
+file "$LIBVIPS_SO_PKG" | grep -q "ELF.*x86-64" || die "libvips-cpp.so.8.18.3 in package is not ELF x86-64"
+
+# Validate sharp .node is present (was traced by standalone into .pnpm tree)
+SHARP_NODE="$(find "$PACKAGE_DIR/app" -name "sharp-linux-x64-0.35.1.node" -type f 2>/dev/null | head -1 || true)"
+[[ -n "$SHARP_NODE" ]] || die "sharp-linux-x64-0.35.1.node not found in package after standalone copy"
+file "$SHARP_NODE" | grep -q "ELF.*x86-64" || die "sharp-linux-x64-0.35.1.node in package is not ELF x86-64"
+
+# ldd check: RPATH in the .node uses $ORIGIN/../../sharp-libvips-linux-x64/lib/
+# After our copy the symlink resolves to the package's libvips lib/ where .so now lives.
+if command -v ldd >/dev/null 2>&1; then
+  LDD_OUT="$(ldd "$SHARP_NODE" 2>&1 || true)"
+  if echo "$LDD_OUT" | grep -q "not found"; then
+    UNRESOLVED="$(echo "$LDD_OUT" | grep "not found")"
+    die "sharp .node has unresolved dynamic dependencies:\n$UNRESOLVED"
+  else
+    ok "sharp .node dynamic deps OK (ldd — no 'not found')"
   fi
 fi
 
-if [[ -n "${SHARP_NODE:-}" ]] && [[ -f "$SHARP_NODE" ]]; then
-  file "$SHARP_NODE" | grep -q "ELF.*x86-64" || die "sharp.node is not Linux x64"
-  ok "Sharp native module found (linux-x64)"
-else
-  warn "sharp.node not found in package"
-fi
+ok "Sharp 0.35.1 + libvips 8.18.3 packaged (libvips-cpp.so.8.18.3 is real file, ELF x86-64)"
 
 # Verify: no .dll files in Linux package (Windows artifacts)
 DLL_COUNT=$(find "$PACKAGE_DIR" -name "*.dll" | wc -l)

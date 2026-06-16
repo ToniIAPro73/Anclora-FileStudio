@@ -4,8 +4,8 @@
 
 | Test | Script | Status | Notes |
 |------|--------|--------|-------|
-| Structural verify (46 checks) | `verify-linux-portable.sh` | ✅ PASS | 46/46 |
-| Smoke (no false positive) | `smoke-linux-portable.sh` | ✅ PASS | artifact-absent → exit 1 |
+| Structural verify (53 checks) | `verify-linux-portable.sh` | ✅ PASS | 53/53, 0 WARN |
+| Smoke with PNG→WebP | `smoke-linux-portable.sh` | ✅ PASS | artifact-absent → exit 1; real Sharp conversion |
 | Runtime smoke (9 checks) | manual / inline | ✅ PASS | server starts, SQLite, analyze, restart, stop |
 | Health endpoint | runtime smoke | ✅ PASS | node=v22.22.1, tools=10/10 |
 | SQLite persistence | runtime smoke | ✅ PASS | history endpoint responds, data survives restart |
@@ -13,13 +13,20 @@
 | PNG analyze | runtime smoke | ✅ PASS | kind=universal-file |
 | Clean stop | runtime smoke | ✅ PASS | stop script, no residual processes |
 | Bundled Node | verify + runtime | ✅ PASS | ELF x86-64, v22.22.1, SHA-256 verified from nodejs.org |
+| libvips-cpp.so.8.18.3 | `verify-linux-portable.sh` §7b | ✅ PASS | real file 17MB ELF x86-64, not symlink |
+| Sharp ldd (no not found) | `verify-linux-portable.sh` §7b | ✅ PASS | all dynamic deps resolved |
+| Sharp loads (bundled node) | `verify-linux-portable.sh` §7b | ✅ PASS | sharp=0.35.1 vips=8.18.3 |
+| PNG→WebP (bundled node) | `smoke-linux-portable.sh` | ✅ PASS | 4×4 → 68 bytes WebP |
+| Independent SHA-256 | manual | ✅ PASS | 8160c05f... matches |
+| Independent Sharp load | manual | ✅ PASS | sharp=0.35.1, vips=8.18.3 |
+| Independent health | manual | ✅ PASS | ok=true, nodeVersion=v22.22.1 |
 
 ## Windows
 
 | Test | Script | Status | Notes |
 |------|--------|--------|-------|
-| Structural smoke | `smoke-windows-portable.sh` | NOT EXECUTED | Build script rewrite in progress |
-| Runtime smoke | manual | NOT EXECUTED | Requires Windows |
+| Structural smoke (20 checks) | `smoke-windows-portable.sh` | ✅ PASS | 20/20 |
+| Runtime smoke | manual | ⏳ PENDING | Requires Windows environment |
 
 ## CI gate requirement
 

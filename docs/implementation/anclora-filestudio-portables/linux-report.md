@@ -1,8 +1,9 @@
 # Linux Portable — Execution Report
 
 Date: 2026-06-16
-Build host: WSL2 Ubuntu 22.04, x86-64
-Node.js: v22.22.1 (ABI 127)
+Build host: WSL2 Ubuntu 22.04
+Node.js (bundled): v22.22.1 (ELF x86-64, ABI 127)
+Sharp: 0.35.1 / libvips 8.18.3
 
 ## Artifact
 
@@ -13,61 +14,102 @@ dist/linux/Anclora-FileStudio-Linux-x64.tar.zst.sha256
 
 | Property | Value |
 |----------|-------|
-| Compressed size | 45 MB |
-| SHA-256 | 1812ef9616d321fb4cfa6c47e0b48e305af8b7ed6133f64ec669d7bf583f5fc8 |
-| Bundled Node.js | v22.22.1 (ELF x86-64, ABI 127) |
-| Compression | zstd -T0 -19 |
-| Self-contained runtime | ✅ (bundled node binary, no system Node required) |
+| Size | 51 MB |
+| SHA-256 | 8160c05fc4170e408459dd3e30d995fa3c9b41964b40e05be8d76a8598376738 |
+| Compression | zstd level 19 |
 
-## Capabilities
+## Issues fixed in this build
 
-`data`, `image`, `history`, `audio`, `video`, `thumbnail`, `youtube`, `pdf`, `archive`, `document`, `ocr`, `ebook`
+### Fix 1 — Turbopack `.next/node_modules/` stubs (prior build)
+Next.js standalone copies external module stubs (better-sqlite3, sharp) into `.next/node_modules/`.
+The previous build script excluded that directory, causing runtime failures.
+Fixed by removing `! -name "node_modules"` from the `.next/` copy filter.
 
-All capabilities are derived from ACTUALLY PRESENT tools — no false advertising.
+### Fix 2 — libvips-cpp.so.8.18.3 missing (this build)
+**Root cause:** Next.js standalone output traces JS files but NOT binary `.so` files.
+`@img+sharp-libvips-linux-x64@1.3.0/lib/` in standalone only contains `index.js` —
+`libvips-cpp.so.8.18.3` (17MB) is absent.
 
-## Structural Verification (46 checks)
+Additionally, the standalone omits the pnpm intra-package symlink
+`@img+sharp-linux-x64@0.35.1/node_modules/@img/sharp-libvips-linux-x64`
+which is required by the RPATH `$ORIGIN/../../sharp-libvips-linux-x64/lib/` embedded
+in `sharp-linux-x64-0.35.1.node`.
+
+**Fix:**
+1. Copy complete `lib/` from `node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.3.0` into package
+2. Recreate the missing `sharp-libvips-linux-x64` symlink in `@img+sharp-linux-x64@0.35.1`
+3. Build hard-fails if either file is missing or not ELF x86-64
+4. `ldd` check confirms no unresolved dependencies before packaging
+
+### Fix 3 — Sharp engine version reporting
+`sharp-engine.ts` was reporting `sharp@8.18.3` (libvips version) as the Sharp version.
+Fixed to report `sharp@0.35.1` (Sharp npm package version) with libvips in `binaryPath`.
+
+## Verification results (53/53 PASS, 0 WARN, 0 FAIL)
 
 ```
-PASS: 46
-WARN: 0
-FAIL: 0
+[PASS] tar.zst exists: 51M
+[PASS] sha256 file exists
+[PASS] SHA-256 OK: 8160c05fc4170e408459dd3e30d995fa3c9b41964b40e05be8d76a8598376738
+[PASS] start-anclora-filestudio.sh
+[PASS] stop-anclora-filestudio.sh
+[PASS] diagnose-anclora-filestudio.sh
+[PASS] manifest.json / VERSION.txt / LEEME.txt / THIRD_PARTY_NOTICES.txt / SBOM.cdx.json
+[PASS] app/server.js / app/.next/static / runtime/node
+[PASS] dir: app / data / temp / logs
+[PASS] executable: *.sh (3/3)
+[PASS] Valid JSON: manifest.json / SBOM.cdx.json
+[PASS] manifest.name / version / buildId / buildDate / commit / platform / arch / capabilities
+[PASS] platform=linux / arch=x64
+[PASS] runtime/node: ELF x86-64 — v22.22.1
+[PASS] Launcher uses bundled node
+[PASS] better_sqlite3.node is ELF x86-64 / dynamic deps OK
+[PASS] sharp-linux-x64-0.35.1.node is ELF x86-64
+[PASS] @img/sharp-libvips-linux-x64@1.3.0 directory exists
+[PASS] libvips-cpp.so.8.18.3 is a real file (not symlink)
+[PASS] libvips-cpp.so.8.18.3 is ELF x86-64
+[PASS] libvips-cpp.so.8.18.3 size OK (17MB)
+[PASS] No broken symlinks in sharp@0.35.1 pnpm tree
+[PASS] sharp .node dynamic deps OK (ldd)
+[PASS] Sharp loads with bundled node: sharp=0.35.1 vips=8.18.3
+[PASS] No .dll files (Windows artifacts absent)
+[PASS] No secrets / no .git / no developer paths in launchers
+[PASS] Launcher binds to 127.0.0.1 / does not bind to 0.0.0.0
+[PASS] THIRD_PARTY_NOTICES.txt / SBOM.cdx.json present
 ```
 
-Includes:
-
-- Artifact existence + SHA-256 checksum
-- Required files: server.js, .next/static, manifest.json, runtime/node, etc.
-- ELF x86-64 validation for better_sqlite3.node, sharp.node, runtime/node
-- JSON validity (manifest.json, SBOM.cdx.json)
-- Launcher uses bundled runtime/node (not system node)
-- No .dll files, no .git, no secrets, no developer paths
-- 127.0.0.1 binding, no 0.0.0.0
-
-## Runtime Smoke Test (9/9 PASS)
-
-Executed on WSL2 from a clean temp directory, using bundled node binary only:
+## Smoke test results (PASS)
 
 ```
-[PASS] Launcher exited 0 (server started in background with bundled node v22.22.1)
-[PASS] Health: node=v22.22.1, tools=10/10 available
-[PASS] Frontend HTTP 200
-[PASS] History endpoint: SQLite working (0 jobs)
-[PASS] Analyze JSON: kind=universal-file
-[PASS] Analyze PNG: kind=universal-file
-[PASS] PID file exists
-[PASS] Stop OK (clean shutdown)
-[PASS] Persistence after restart
+[PASS] start-anclora-filestudio.sh / stop-anclora-filestudio.sh
+[PASS] manifest.json / VERSION.txt / app/server.js / app/.next/static
+[PASS] No developer paths (excl. Next.js build artifacts)
+[PASS] SHA-256 OK
+[PASS] manifest.json is valid JSON
+[PASS] Sharp PNG→WebP: OK width=4 height=4 size=68 (output 68 bytes)
 ```
 
-## Issues resolved during build
+## Independent validation (~/Downloads/Prueba Anclora Linux Corregida/)
 
-| Issue | Resolution |
-|-------|-----------|
-| Tool version strings with newlines broke Python heredoc | Switched to temp JSON file written by Python subprocess |
-| Next.js standalone mirrors entire monorepo | Switched to whitelist copy (server.js, .next/, node_modules/, public/) |
-| `dist/linux/*.tar.zst` already exists when rebuilding | Added `rm -f` before zstd invocation |
-| Smoke test gave exit 0 when package absent | Changed to `exit 1` with explicit error message |
-| `server.js` contains `outputFileTracingRoot` (build path) | Excluded from dev-path scan (known Next.js artifact) |
-| BUILD_ID missing → "Could not find a production build" | Changed .next copy to use `find ! -name "cache"` (keep all other subdirs) |
-| Turbopack `.next/node_modules/` excluded from copy | Removed `! -name "node_modules"` filter for `.next/` copy; Turbopack places `better-sqlite3-<hash>` and `sharp-<hash>` stubs there — required at runtime |
-| Node.js was not bundled — depended on system node | Download Node.js v22.22.1 from nodejs.org, verify SHA-256, include as `runtime/node` |
+| Check | Result |
+|-------|--------|
+| SHA-256 match | PASS |
+| runtime/node version | PASS — v22.22.1 (ELF x86-64) |
+| libvips-cpp.so.8.18.3 (real file, 18MB, ELF x86-64) | PASS |
+| Sharp loads: sharp=0.35.1, vips=8.18.3 | PASS |
+| PNG→WebP conversion (8x8 → 70 bytes) | PASS |
+| Health endpoint: ok=true, nodeVersion=v22.22.1 | PASS |
+| History endpoint (SQLite) | PASS |
+
+## Security constraints met
+
+- App listens only on 127.0.0.1 (loopback), port range 3847-3857
+- No 0.0.0.0 binding
+- No .env, .pem, .key files in package
+- No .git directory in package
+- No developer paths in launcher scripts
+- `better_sqlite3.node`: ELF x86-64 (Linux)
+- `sharp-linux-x64-0.35.1.node`: ELF x86-64 (Linux)
+- `libvips-cpp.so.8.18.3`: ELF x86-64, real file (not symlink), 17MB
+- No Git operations in build script
+- All binary downloads verified against toolchain.lock.json SHA-256

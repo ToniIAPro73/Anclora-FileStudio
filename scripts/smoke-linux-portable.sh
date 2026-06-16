@@ -87,6 +87,75 @@ else
   (( FAIL++ )) || true
 fi
 
+# ── Sharp: real PNG→WebP conversion using bundled node ───────────────────────
+echo ""
+echo "--- Sharp PNG→WebP conversion (bundled node) ---"
+
+NODE_BIN="$PKG/runtime/node"
+LIBVIPS_SO="$(find "$PKG/app/node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.3.0" \
+  -name "libvips-cpp.so.8.18.3" -not -type l 2>/dev/null | head -1 || true)"
+
+if [[ ! -x "$NODE_BIN" ]]; then
+  echo "[FAIL] runtime/node not executable — cannot run Sharp test"
+  (( FAIL++ )) || true
+elif [[ -z "$LIBVIPS_SO" ]]; then
+  echo "[FAIL] libvips-cpp.so.8.18.3 not found in package — Sharp cannot load"
+  (( FAIL++ )) || true
+else
+  # Create a minimal 4x4 red PNG in /tmp using Python (no external deps)
+  TEST_PNG="$TMP_DIR/test-input.png"
+  TEST_WEBP="$TMP_DIR/test-output.webp"
+  python3 - "$TEST_PNG" << 'MKPNG'
+import struct, zlib, sys
+
+def make_png(path):
+    def chunk(name, data):
+        c = struct.pack('>I', len(data)) + name + data
+        return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
+    w, h = 4, 4
+    sig = b'\x89PNG\r\n\x1a\n'
+    # colortype=2 (RGB), 8-bit depth, 3 bytes per pixel
+    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+    # Each scanline: filter byte (0=None) + w*3 bytes RGB
+    raw = b''.join(b'\x00' + b'\xff\x00\x00' * w for _ in range(h))
+    idat = chunk(b'IDAT', zlib.compress(raw))
+    iend = chunk(b'IEND', b'')
+    with open(path, 'wb') as f:
+        f.write(sig + ihdr + idat + iend)
+
+make_png(sys.argv[1])
+MKPNG
+
+  SHARP_TEST_RESULT="$(cd "$PKG/app" && "$NODE_BIN" -e "
+const sharp = require('sharp');
+const path = require('path');
+sharp('$TEST_PNG')
+  .webp({ quality: 80 })
+  .toFile('$TEST_WEBP')
+  .then(info => {
+    console.log('OK width=' + info.width + ' height=' + info.height + ' size=' + info.size);
+    process.exit(0);
+  })
+  .catch(err => {
+    console.error('ERR', err.message);
+    process.exit(1);
+  });
+" 2>&1 || echo "EXEC_FAILED")"
+
+  if echo "$SHARP_TEST_RESULT" | grep -q "^OK"; then
+    WEBP_SIZE="$(stat -c%s "$TEST_WEBP" 2>/dev/null || echo 0)"
+    if [[ "$WEBP_SIZE" -gt 0 ]]; then
+      echo "[PASS] Sharp PNG→WebP: $SHARP_TEST_RESULT (output ${WEBP_SIZE} bytes)"
+    else
+      echo "[FAIL] Sharp PNG→WebP: output file empty or missing"
+      (( FAIL++ )) || true
+    fi
+  else
+    echo "[FAIL] Sharp PNG→WebP conversion failed: $SHARP_TEST_RESULT"
+    (( FAIL++ )) || true
+  fi
+fi
+
 echo ""
 if [[ "$FAIL" -gt 0 ]]; then
   echo "=== Smoke test FAILED ($FAIL issue(s)) ==="

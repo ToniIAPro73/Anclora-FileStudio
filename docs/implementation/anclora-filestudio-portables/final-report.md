@@ -9,8 +9,9 @@ Branch: `build/anclora-filestudio-portables`
 |------|--------|
 | Build orchestrator (`build-portables.sh`) | Done |
 | Linux build script (complete rewrite) | Done |
-| Linux artifact (tar.zst + sha256) | Done (45MB) |
-| Linux structural verification (46 checks) | PASS |
+| Linux artifact (tar.zst + sha256) | Done (51MB) |
+| Linux structural verification (53 checks) | PASS |
+| Linux Sharp libvips fix | PASS |
 | Linux runtime smoke (9/9) | PASS |
 | Windows build script (complete rewrite) | Done |
 | Windows artifact (zip + sha256) | Done (250MB) |

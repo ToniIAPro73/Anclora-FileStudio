@@ -202,18 +202,106 @@ else
   (( WARN_COUNT++ )) || true
 fi
 
-SHARP_NODE="$(find "$PKG/app" -name "sharp*.node" -type f 2>/dev/null | head -1 || true)"
+SHARP_NODE="$(find "$PKG/app" -name "sharp-linux-x64-0.35.1.node" -type f 2>/dev/null | head -1 || true)"
 if [[ -n "$SHARP_NODE" ]]; then
   if file "$SHARP_NODE" | grep -q "ELF.*x86-64"; then
-    echo -e "${GREEN}[PASS]${NC} sharp.node is ELF x86-64"
+    echo -e "${GREEN}[PASS]${NC} sharp-linux-x64-0.35.1.node is ELF x86-64"
     (( PASS++ )) || true
   else
-    echo -e "${RED}[FAIL]${NC} sharp.node is NOT ELF x86-64"
+    echo -e "${RED}[FAIL]${NC} sharp-linux-x64-0.35.1.node is NOT ELF x86-64"
     (( FAIL++ )) || true
   fi
 else
-  echo -e "${YELLOW}[WARN]${NC} sharp.node not found"
-  (( WARN_COUNT++ )) || true
+  echo -e "${RED}[FAIL]${NC} sharp-linux-x64-0.35.1.node not found (Sharp not packaged)"
+  (( FAIL++ )) || true
+fi
+
+# ── 7b. Sharp libvips runtime completeness ────────────────────────────────────
+echo ""
+echo "--- 7b. Sharp libvips 8.18.3 runtime ---"
+
+LIBVIPS_PKG_DIR="$PKG/app/node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.3.0/node_modules/@img/sharp-libvips-linux-x64"
+
+# Check directory exists
+if [[ -d "$LIBVIPS_PKG_DIR" ]]; then
+  echo -e "${GREEN}[PASS]${NC} @img/sharp-libvips-linux-x64@1.3.0 directory exists"
+  (( PASS++ )) || true
+else
+  echo -e "${RED}[FAIL]${NC} @img/sharp-libvips-linux-x64@1.3.0 directory missing"
+  (( FAIL++ )) || true
+fi
+
+# Check libvips-cpp.so.8.18.3 physically present
+LIBVIPS_SO="$LIBVIPS_PKG_DIR/lib/libvips-cpp.so.8.18.3"
+if [[ -f "$LIBVIPS_SO" ]] && [[ ! -L "$LIBVIPS_SO" ]]; then
+  echo -e "${GREEN}[PASS]${NC} libvips-cpp.so.8.18.3 is a real file (not symlink)"
+  (( PASS++ )) || true
+  # Validate it is ELF x86-64
+  if file "$LIBVIPS_SO" | grep -q "ELF.*x86-64"; then
+    echo -e "${GREEN}[PASS]${NC} libvips-cpp.so.8.18.3 is ELF x86-64"
+    (( PASS++ )) || true
+  else
+    echo -e "${RED}[FAIL]${NC} libvips-cpp.so.8.18.3 is NOT ELF x86-64 ($(file "$LIBVIPS_SO" 2>/dev/null | head -1))"
+    (( FAIL++ )) || true
+  fi
+  # Check size > 1MB (the real .so is ~17MB; a stub would be tiny)
+  SO_SIZE="$(stat -c%s "$LIBVIPS_SO" 2>/dev/null || echo 0)"
+  if [[ "$SO_SIZE" -gt 1000000 ]]; then
+    echo -e "${GREEN}[PASS]${NC} libvips-cpp.so.8.18.3 size OK ($(( SO_SIZE / 1024 / 1024 ))MB)"
+    (( PASS++ )) || true
+  else
+    echo -e "${RED}[FAIL]${NC} libvips-cpp.so.8.18.3 too small (${SO_SIZE} bytes) — likely a stub"
+    (( FAIL++ )) || true
+  fi
+elif [[ -L "$LIBVIPS_SO" ]]; then
+  echo -e "${RED}[FAIL]${NC} libvips-cpp.so.8.18.3 is a symlink — must be a real file in the package"
+  (( FAIL++ )) || true
+else
+  echo -e "${RED}[FAIL]${NC} libvips-cpp.so.8.18.3 MISSING from package"
+  (( FAIL++ )) || true
+fi
+
+# No broken symlinks in the Sharp pnpm tree
+BROKEN_SYMLINKS="$(find "$PKG/app/node_modules/.pnpm/sharp@0.35.1" -xtype l 2>/dev/null || true)"
+if [[ -z "$BROKEN_SYMLINKS" ]]; then
+  echo -e "${GREEN}[PASS]${NC} No broken symlinks in sharp@0.35.1 pnpm tree"
+  (( PASS++ )) || true
+else
+  echo -e "${RED}[FAIL]${NC} Broken symlinks in sharp pnpm tree:"
+  echo "$BROKEN_SYMLINKS" | head -5
+  (( FAIL++ )) || true
+fi
+
+# ldd check on the .node file
+if [[ -n "$SHARP_NODE" ]] && command -v ldd >/dev/null 2>&1; then
+  LDD_OUT="$(ldd "$SHARP_NODE" 2>&1 || true)"
+  if echo "$LDD_OUT" | grep -q "not found"; then
+    echo -e "${RED}[FAIL]${NC} sharp .node has unresolved dynamic deps:"
+    echo "$LDD_OUT" | grep "not found"
+    (( FAIL++ )) || true
+  else
+    echo -e "${GREEN}[PASS]${NC} sharp .node dynamic deps OK (ldd)"
+    (( PASS++ )) || true
+  fi
+fi
+
+# Real Sharp load test using bundled node
+# require('sharp') works because node_modules/sharp symlinks to .pnpm/sharp@0.35.1
+NODE_BIN_VERIFY="${PKG}/runtime/node"
+if [[ -x "$NODE_BIN_VERIFY" ]] && [[ -n "$SHARP_NODE" ]]; then
+  SHARP_LOAD_RESULT="$(cd "$PKG/app" && "$NODE_BIN_VERIFY" -e "
+const s = require('sharp');
+const v = s.versions;
+if (!v || !v.sharp || !v.vips) { console.error('versions missing'); process.exit(1); }
+console.log('sharp=' + v.sharp + ' vips=' + v.vips);
+" 2>&1 || echo "FAILED")"
+  if echo "$SHARP_LOAD_RESULT" | grep -q "sharp=0.35.1.*vips=8.18.3"; then
+    echo -e "${GREEN}[PASS]${NC} Sharp loads with bundled node: $SHARP_LOAD_RESULT"
+    (( PASS++ )) || true
+  else
+    echo -e "${RED}[FAIL]${NC} Sharp load test with bundled node failed: $SHARP_LOAD_RESULT"
+    (( FAIL++ )) || true
+  fi
 fi
 
 # No .dll files in Linux package
