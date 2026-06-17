@@ -208,11 +208,12 @@ try {
 
     $poppler = $health.dependencies | Where-Object { $_.id -eq "poppler" } | Select-Object -First 1
     if ($null -eq $poppler) { throw "Poppler dependency missing from health" }
-    if ($poppler.available) { throw "Poppler should be missing while it is not bundled" }
-    if ($poppler.status -ne "missing") { throw "Expected Poppler missing, got $($poppler.status)" }
+    if (-not $poppler.available) { throw "Poppler is not available: status=$($poppler.status) error=$($poppler.error)" }
+    if ($poppler.status -ne "available") { throw "Expected Poppler available, got $($poppler.status)" }
+    if ([string]::IsNullOrWhiteSpace($poppler.version)) { throw "Poppler version is empty" }
     if ($poppler.path -notmatch "pdftoppm\.exe$") { throw "Poppler path must target pdftoppm.exe on Windows: $($poppler.path)" }
-    if ($poppler.recommendedAction -match "sudo apt") { throw "Poppler Windows recommendation contains sudo apt" }
-    Write-Host "[PASS] Poppler missing with Windows recommendation"
+    if ($poppler.recommendedAction) { throw "Poppler should not return a recommendation when available" }
+    Write-Host ("[PASS] Poppler available via pdftoppm.exe version " + $poppler.version)
 
     $docxPath = Join-Path $workDir "sample.docx"
     $pandocPath = Join-Path $pkgDir "tools\pandoc\pandoc.exe"

@@ -72,12 +72,16 @@ QPDF_VERSION="$(read_lock "next(t for t in d['tools'] if t['id']=='qpdf')['versi
 QPDF_URL="$(read_lock "next(t for t in d['tools'] if t['id']=='qpdf')['versions']['win-x64']['sourceUrl']")"
 QPDF_SHA256="$(read_lock "next(t for t in d['tools'] if t['id']=='qpdf')['versions']['win-x64']['sha256']")"
 
+POPPLER_VERSION="$(read_lock "next(t for t in d['tools'] if t['id']=='poppler')['versions']['win-x64']['version']")"
+POPPLER_URL="$(read_lock "next(t for t in d['tools'] if t['id']=='poppler')['versions']['win-x64']['sourceUrl']")"
+POPPLER_SHA256="$(read_lock "next(t for t in d['tools'] if t['id']=='poppler')['versions']['win-x64']['sha256']")"
+
 ok "Toolchain read:"
 ok "  Node.js v${NODE_WIN_VERSION} (ABI ${NODE_WIN_ABI})"
 ok "  yt-dlp ${YTDLP_VERSION}"
 ok "  better-sqlite3 v${BS3_VERSION} (node-v${NODE_WIN_ABI}-win32-x64)"
 ok "  @img/sharp-win32-x64 v${SHARP_VERSION}"
-ok "  Pandoc ${PANDOC_VERSION}  QPDF ${QPDF_VERSION}"
+ok "  Pandoc ${PANDOC_VERSION}  QPDF ${QPDF_VERSION}  Poppler ${POPPLER_VERSION}"
 
 # ── Section 2: Download all binaries to cache (before staging wipe) ──────────
 mkdir -p "$CACHE_DIR"
@@ -134,6 +138,10 @@ download_verify "$PANDOC_URL" "$PANDOC_CACHE" "$PANDOC_SHA256" "Pandoc ${PANDOC_
 # QPDF
 QPDF_CACHE="$CACHE_DIR/qpdf-${QPDF_VERSION}-msvc64.zip"
 download_verify "$QPDF_URL" "$QPDF_CACHE" "$QPDF_SHA256" "QPDF ${QPDF_VERSION}"
+
+# Poppler
+POPPLER_CACHE="$CACHE_DIR/poppler-${POPPLER_VERSION}-windows.zip"
+download_verify "$POPPLER_URL" "$POPPLER_CACHE" "$POPPLER_SHA256" "Poppler ${POPPLER_VERSION}"
 
 # ── Section 3: Install deps, lint, typecheck, tests, build ───────────────────
 info "Verifying required system tools..."
@@ -314,6 +322,20 @@ else
 fi
 rm -rf "$TMP_QPDF"
 ok "QPDF ${QPDF_VERSION} extracted"
+
+# Poppler
+info "Extracting Poppler ${POPPLER_VERSION}..."
+mkdir -p "$TOOLS_DIR/poppler"
+TMP_POPPLER="$(mktemp -d)"
+unzip -q "$POPPLER_CACHE" -d "$TMP_POPPLER" || die "Failed to decompress Poppler ZIP"
+POPPLER_ROOT="$(find "$TMP_POPPLER" -maxdepth 1 -type d -name "poppler-*" | head -1)"
+[[ -n "$POPPLER_ROOT" ]] || die "Poppler root directory not found in ZIP"
+POPPLER_PDFTOPPM="$(find "$POPPLER_ROOT" -path "*/Library/bin/pdftoppm.exe" -o -path "*/bin/pdftoppm.exe" | head -1)"
+[[ -n "$POPPLER_PDFTOPPM" ]] || die "pdftoppm.exe not found in Poppler ZIP"
+cp -r "$POPPLER_ROOT/." "$TOOLS_DIR/poppler/"
+rm -rf "$TMP_POPPLER"
+[[ -f "$TOOLS_DIR/poppler/Library/bin/pdftoppm.exe" ]] || die "Poppler extraction failed: Library/bin/pdftoppm.exe missing"
+ok "Poppler ${POPPLER_VERSION} extracted"
 
 # 7-Zip — optional, no pinned SHA in lockfile, best-effort
 SEVENZIP_VERSION="${SEVENZIP_VERSION:-2601}"
@@ -587,6 +609,7 @@ Bundled runtime and tools:
   sharp:          @img/sharp-win32-x64 ${SHARP_VERSION}
   Pandoc:         ${PANDOC_VERSION}
   QPDF:           ${QPDF_VERSION}
+  Poppler:        ${POPPLER_VERSION}
   7-Zip:          26.01 (best-effort)
 
 All versions and SHA-256 hashes locked in scripts/toolchain.lock.json.
@@ -605,7 +628,7 @@ cat > "$STAGING_DIR/manifest.json" << EOF
   "commit": "${BUILD_COMMIT}",
   "platform": "windows",
   "arch": "x64",
-  "capabilities": ["data","image","audio","video","thumbnail","youtube","pdf","archive","document"],
+  "capabilities": ["data","image","audio","video","thumbnail","youtube","pdf","archive","document","pdf-to-image"],
   "runtime": {
     "nodeVersion": "${NODE_WIN_VERSION}",
     "nodeAbi": "${NODE_WIN_ABI}",
@@ -617,7 +640,8 @@ cat > "$STAGING_DIR/manifest.json" << EOF
     "betterSqlite3": { "version": "${BS3_VERSION}", "sha256": "${BS3_SHA256}" },
     "sharp": { "package": "@img/sharp-win32-x64", "version": "${SHARP_VERSION}", "sha256": "${SHARP_SHA256}" },
     "pandoc": { "version": "${PANDOC_VERSION}", "sha256": "${PANDOC_SHA256}" },
-    "qpdf": { "version": "${QPDF_VERSION}", "sha256": "${QPDF_SHA256}" }
+    "qpdf": { "version": "${QPDF_VERSION}", "sha256": "${QPDF_SHA256}" },
+    "poppler": { "version": "${POPPLER_VERSION}", "sha256": "${POPPLER_SHA256}" }
   }
 }
 EOF
@@ -685,9 +709,13 @@ THIRD-PARTY NOTICES — Anclora FileStudio ${APP_VERSION} Windows x64
 7. QPDF ${QPDF_VERSION} — Apache-2.0 — https://qpdf.sourceforge.io/
    SHA-256: ${QPDF_SHA256}
 
-8. 7-Zip 26.01 — LGPL-2.1 — https://www.7-zip.org/
+8. Poppler ${POPPLER_VERSION} — GPL-2.0 — https://poppler.freedesktop.org/
+   Windows build: https://github.com/oschwartz10612/poppler-windows
+   SHA-256: ${POPPLER_SHA256}
 
-9. Next.js + React (in app/node_modules) — MIT License
+9. 7-Zip 26.01 — LGPL-2.1 — https://www.7-zip.org/
+
+10. Next.js + React (in app/node_modules) — MIT License
 
 All npm dependencies: see individual LICENSE files in app/node_modules/*/LICENSE
 EOF
@@ -715,7 +743,8 @@ cat > "$STAGING_DIR/SBOM.cdx.json" << EOF
     { "type": "library", "name": "better-sqlite3", "version": "${BS3_VERSION}", "licenses": [{"license":{"id":"MIT"}}] },
     { "type": "library", "name": "@img/sharp-win32-x64", "version": "${SHARP_VERSION}", "licenses": [{"license":{"id":"Apache-2.0"}}] },
     { "type": "library", "name": "pandoc", "version": "${PANDOC_VERSION}", "licenses": [{"license":{"id":"GPL-2.0"}}] },
-    { "type": "library", "name": "qpdf", "version": "${QPDF_VERSION}", "licenses": [{"license":{"id":"Apache-2.0"}}] }
+    { "type": "library", "name": "qpdf", "version": "${QPDF_VERSION}", "licenses": [{"license":{"id":"Apache-2.0"}}] },
+    { "type": "library", "name": "poppler", "version": "${POPPLER_VERSION}", "licenses": [{"license":{"id":"GPL-2.0"}}] }
   ]
 }
 EOF
@@ -789,5 +818,5 @@ echo -e "  Runtime : Node.js v${NODE_WIN_VERSION} (ABI ${NODE_WIN_ABI})"
 echo -e "  yt-dlp  : ${YTDLP_VERSION}"
 echo -e "  sqlite3 : better-sqlite3 v${BS3_VERSION} (win32-x64)"
 echo -e "  sharp   : @img/sharp-win32-x64 v${SHARP_VERSION}"
-echo -e "  Pandoc  : ${PANDOC_VERSION} | QPDF: ${QPDF_VERSION}"
+echo -e "  Pandoc  : ${PANDOC_VERSION} | QPDF: ${QPDF_VERSION} | Poppler: ${POPPLER_VERSION}"
 echo -e "${GREEN}========================================${NC}"
