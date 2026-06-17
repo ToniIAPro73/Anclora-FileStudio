@@ -53,10 +53,14 @@ function conversionMap(report) {
   const out = new Map();
   for (const fixture of report.results ?? []) {
     for (const conversion of fixture.conversions ?? []) {
-      out.set(`${fixture.extension}:${conversion.capabilityId}`, conversion);
+      out.set(`${fixture.extension}:${normalizeCapabilityId(conversion.capabilityId)}`, conversion);
     }
   }
   return out;
+}
+
+function normalizeCapabilityId(capabilityId) {
+  return String(capabilityId).replace(/-[a-f0-9]{32}(?=-|$)/g, "");
 }
 
 function render(parity) {
