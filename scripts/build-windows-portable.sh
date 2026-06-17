@@ -165,7 +165,10 @@ info "Running tests..."
 pnpm test || warn "Tests not available or failed — manual review required"
 
 info "Building Next.js standalone..."
-NEXT_TELEMETRY_DISABLED=1 pnpm build
+ANCLORA_FILESTUDIO_DEPLOYMENT_TARGET=desktop \
+NEXT_PUBLIC_ANCLORA_FILESTUDIO_MODE=desktop \
+NEXT_TELEMETRY_DISABLED=1 \
+  pnpm build
 [[ -f "$STANDALONE/server.js" ]] || die "Standalone build missing: $STANDALONE/server.js"
 ok "Next.js build complete"
 

@@ -18,6 +18,16 @@ const desktopRouteImporters = isVercelBuild
       "inputs-analyze-route": () => import("@/server/desktop-routes/inputs-analyze-route"),
     };
 
+const desktopModuleImporters = isVercelBuild
+  ? {}
+  : {
+      "fs": () => import("fs"),
+      "@/lib/config": () => import("@/lib/config"),
+      "@/lib/engines/registry": () => import("@/lib/engines/registry"),
+      "@/lib/diagnostics/toolchain-probe": () => import("@/lib/diagnostics/toolchain-probe"),
+      "@/lib/media/supported-conversions": () => import("@/lib/media/supported-conversions"),
+    };
+
 export async function loadDesktopRoute<T>(routeName: string): Promise<T> {
   const importer = desktopRouteImporters[routeName as keyof typeof desktopRouteImporters];
   if (importer) return importer() as Promise<T>;
@@ -25,5 +35,7 @@ export async function loadDesktopRoute<T>(routeName: string): Promise<T> {
 }
 
 export async function loadDesktopModule<T>(moduleName: string): Promise<T> {
+  const importer = desktopModuleImporters[moduleName as keyof typeof desktopModuleImporters];
+  if (importer) return importer() as Promise<T>;
   return dynamicImporter(moduleName) as Promise<T>;
 }
