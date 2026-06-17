@@ -26,7 +26,7 @@ $OutDir = Join-Path $RepoRoot "artifacts\acceptance\windows"
 
 New-Item -ItemType Directory -Force -Path $ExtractDir, $FixtureDir, $RunnerDir, $OutDir | Out-Null
 
-if (Get-Command pnpm -ErrorAction SilentlyContinue) {
+if ((Get-Command pnpm -ErrorAction SilentlyContinue) -and -not $RepoRoot.StartsWith("\\")) {
     Push-Location $RepoRoot
     try {
         pnpm test:acceptance:fixtures $FixtureDir
@@ -61,9 +61,13 @@ $env:ANCLORA_FILESTUDIO_PORT = "$Port"
 $env:PORT = "$Port"
 $startScript = Join-Path $PkgPath "internal\start-anclora-filestudio.ps1"
 $stopScript = Join-Path $PkgPath "internal\stop-anclora-filestudio.ps1"
+$portFile = Join-Path $PkgPath "data\anclora-filestudio.port"
 
 try {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $startScript
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $startScript -BaseDir $PkgPath -SkipBrowser
+    if (Test-Path $portFile) {
+        $Port = [int]((Get-Content $portFile -Raw).Trim())
+    }
     $baseUrl = "http://127.0.0.1:$Port"
     & $NodeExe (Join-Path $RunnerDir "run-conversion-suite.mjs") `
         --repo-root $RepoRoot `
@@ -77,6 +81,6 @@ try {
 }
 finally {
     if (Test-Path $stopScript) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stopScript | Out-Null
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stopScript -BaseDir $PkgPath | Out-Null
     }
 }
