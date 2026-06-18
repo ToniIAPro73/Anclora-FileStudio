@@ -1,5 +1,10 @@
 # Distribución portable Linux — Anclora FileStudio
 
+## Desktop PRO 0.2.0
+
+The Linux portable should expose Desktop PRO navigation, use local bundled or
+system tools, and keep diagnostics explicit for each native engine.
+
 ## Artefacto
 
 | Artefacto | Descripción |

@@ -188,6 +188,7 @@ if [[ -n "$SEVENZIP" ]]; then
   fi
 
   for marker in \
+    'C:\Program Files\LibreOffice\program\soffice.com' \
     'C:\Program Files\LibreOffice\program\soffice.exe' \
     'C:\Program Files\Calibre2\ebook-convert.exe' \
     'C:\Program Files\Tesseract-OCR\tesseract.exe' \
@@ -202,6 +203,16 @@ if [[ -n "$SEVENZIP" ]]; then
       FAIL=$((FAIL+1))
     fi
   done
+
+  SOFFICE_COM_LINE="$(grep -nF 'C:\Program Files\LibreOffice\program\soffice.com' "$TOOL_RESOLUTION_PS1" | head -1 | cut -d: -f1 || true)"
+  SOFFICE_EXE_LINE="$(grep -nF 'C:\Program Files\LibreOffice\program\soffice.exe' "$TOOL_RESOLUTION_PS1" | head -1 | cut -d: -f1 || true)"
+  if [[ -n "$SOFFICE_COM_LINE" && -n "$SOFFICE_EXE_LINE" && "$SOFFICE_COM_LINE" -lt "$SOFFICE_EXE_LINE" ]]; then
+    echo "[PASS] tool-resolution prioritizes soffice.com before soffice.exe"
+    PASS=$((PASS+1))
+  else
+    echo "[FAIL] tool-resolution does not prioritize soffice.com before soffice.exe"
+    FAIL=$((FAIL+1))
+  fi
 
   echo ""
   echo "--- Structural: $PASS PASS, $FAIL FAIL ---"

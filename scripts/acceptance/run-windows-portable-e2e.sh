@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PS1_PATH="$SCRIPT_DIR/run-windows-portable-e2e.ps1"
 
 if command -v wslpath >/dev/null 2>&1 && command -v powershell.exe >/dev/null 2>&1; then
+  pnpm test:acceptance:fixtures "$REPO_ROOT/tests/acceptance/fixtures/generated"
   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
     -File "$(wslpath -w "$PS1_PATH")" \
     -RepoRoot "$(wslpath -w "$REPO_ROOT")"

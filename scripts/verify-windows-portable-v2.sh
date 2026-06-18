@@ -336,6 +336,7 @@ TOOL_RESOLUTION_PS1="$EXTRACTED/internal/tool-resolution.ps1"
 info "Verificando resolución de herramientas externas..."
 if [[ -f "$TOOL_RESOLUTION_PS1" ]]; then
   TOOL_RESOLUTION_MARKERS=(
+    "C:\\Program Files\\LibreOffice\\program\\soffice.com"
     "C:\\Program Files\\LibreOffice\\program\\soffice.exe"
     "C:\\Program Files\\Calibre2\\ebook-convert.exe"
     "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
@@ -351,6 +352,14 @@ if [[ -f "$TOOL_RESOLUTION_PS1" ]]; then
       fail "  tool-resolution no contiene: $marker"
     fi
   done
+  SOFFICE_COM_LINE="$(grep -nF "C:\\Program Files\\LibreOffice\\program\\soffice.com" "$TOOL_RESOLUTION_PS1" | head -1 | cut -d: -f1 || true)"
+  SOFFICE_EXE_LINE="$(grep -nF "C:\\Program Files\\LibreOffice\\program\\soffice.exe" "$TOOL_RESOLUTION_PS1" | head -1 | cut -d: -f1 || true)"
+  if [[ -n "$SOFFICE_COM_LINE" && -n "$SOFFICE_EXE_LINE" && "$SOFFICE_COM_LINE" -lt "$SOFFICE_EXE_LINE" ]]; then
+    ok "  LibreOffice prioriza soffice.com antes de soffice.exe"
+    PASS=$((PASS+1))
+  else
+    fail "  LibreOffice no prioriza soffice.com antes de soffice.exe"
+  fi
 else
   fail "  tool-resolution.ps1 no encontrado"
 fi

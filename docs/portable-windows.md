@@ -1,5 +1,14 @@
 # Distribución portable Windows — Anclora FileStudio
 
+## Desktop PRO 0.2.0
+
+The Windows portable should expose the Desktop PRO navigation and keep Web mode
+unaffected. It must preserve the previous LibreOffice fix: prefer
+`soffice.com` over `soffice.exe` for probes launched from Node.
+
+Poppler is optional. If it is not bundled, PDF-to-image and PDF OCR features
+must remain unavailable with Windows-specific guidance.
+
 ## Artefactos
 
 | Artefacto | Descripción |

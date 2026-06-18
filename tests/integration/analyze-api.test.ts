@@ -188,6 +188,36 @@ describe("Analyze API — content-based detection (wrong extension)", () => {
     // Category should be plain-text since HTML falls under text/ MIME
     expect(result.category).toBe("plain-text");
   });
+
+  it("keeps ZIP-based .odt files in document routing", async () => {
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const fakePath = path.join(tmpDir, "document.odt");
+    fs.writeFileSync(fakePath, Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      Buffer.from("mimetypeapplication/vnd.oasis.opendocument.textcontent.xmlmanifest.xml"),
+    ]));
+
+    const result = await detectFile(fakePath);
+    expect(result.detectedFormat).toBe("odt");
+    expect(result.detectedMimeType).toBe("application/vnd.oasis.opendocument.text");
+    expect(result.category).toBe("document");
+    expect(result.attributes.kind).toBe("document");
+  });
+
+  it("keeps ZIP-based .ods files in spreadsheet routing", async () => {
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const fakePath = path.join(tmpDir, "spreadsheet.ods");
+    fs.writeFileSync(fakePath, Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      Buffer.from("content.xmlmanifest.xml"),
+    ]));
+
+    const result = await detectFile(fakePath);
+    expect(result.detectedFormat).toBe("ods");
+    expect(result.detectedMimeType).toBe("application/vnd.oasis.opendocument.spreadsheet");
+    expect(result.category).toBe("spreadsheet");
+    expect(result.attributes.kind).toBe("spreadsheet");
+  });
 });
 
 describe("Analyze API — extension validation (route-level checks)", () => {

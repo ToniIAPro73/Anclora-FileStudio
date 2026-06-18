@@ -415,7 +415,7 @@ const DOCUMENT_OPERATIONS: OperationDefinition[] = [
     category: "document",
     labelKey: "op.office.to-pdf",
     descriptionKey: "op.office.to-pdf.desc",
-    inputFormats: ["docx", "xlsx", "pptx", "odt", "ods", "odp"],
+    inputFormats: ["docx", "xlsx", "pptx", "odt", "ods"],
     outputFormats: ["pdf"],
     engineId: "libreoffice",
     dependencies: ["libreoffice"],

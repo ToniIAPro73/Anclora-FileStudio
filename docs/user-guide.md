@@ -58,6 +58,20 @@ If you are using the Windows portable distribution:
 
 The portable distribution includes Node.js, yt-dlp, FFmpeg, and FFprobe. For additional conversion capabilities (Pandoc, LibreOffice, QPDF, Calibre, Tesseract), install them separately.
 
+### Desktop PRO
+
+Desktop PRO is organized by task:
+
+- **Imágenes**: Web quick mode plus Sharp-powered advanced image processing.
+- **PDF**: Web quick mode plus QPDF, Poppler and OCR where available.
+- **Audio y vídeo**: FFmpeg, FFprobe and yt-dlp.
+- **Documentos**: LibreOffice and Pandoc.
+- **OCR**: Tesseract and Poppler.
+- **Archivos**: 7-Zip.
+- **Ebooks**: Calibre.
+- **Más herramientas**: structured data.
+- **Historial** and **Diagnóstico**: local SQLite jobs and tool availability.
+
 ---
 
 ## Converting a Local File
@@ -85,7 +99,7 @@ Anclora FileStudio supports files in the following categories:
 - **Image**: JPEG, PNG, WebP, AVIF, TIFF, GIF
 - **Documents**: DOCX, DOC, ODT, RTF
 - **Spreadsheets**: XLSX, XLS, ODS
-- **Presentations**: PPTX, PPT, ODP
+- **Presentations**: PPTX, PPT
 - **PDF**: PDF
 - **Ebooks**: EPUB, MOBI, AZW3
 - **Archives**: ZIP, 7Z, TAR, GZ, RAR, BZ2

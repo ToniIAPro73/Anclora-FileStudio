@@ -30,7 +30,7 @@ STATIC_DIR="$REPO_ROOT/.next/static"
 PUBLIC_DIR="$REPO_ROOT/public"
 
 BUILD_DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-APP_VERSION="0.1.0"
+APP_VERSION="$(node -p "require('$REPO_ROOT/package.json').version" 2>/dev/null || echo "0.2.0")"
 
 [[ -f "$LOCKFILE" ]] || die "toolchain.lock.json not found: $LOCKFILE"
 [[ -f "$REPO_ROOT/package.json" ]] || die "Run from the repository root"
