@@ -1,6 +1,6 @@
 {
   "name": "anclora-filestudio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "engines": {
@@ -52,6 +52,7 @@
     "test:web-pdf": "vitest run tests/vercel/web-phase1-capabilities.test.ts",
     "test:web-privacy": "vitest run tests/vercel/web-phase1-privacy.test.ts",
     "test:web-phase1": "pnpm test:web-images && pnpm test:web-pdf && pnpm test:web-privacy",
+    "test:desktop-pro": "vitest run tests/desktop-pro",
     "build:desktop": "next build",
     "build:service": "pnpm --filter @anclora/filestudio-api build",
     "build:local-agent": "pnpm --filter @anclora/filestudio-local-agent build",

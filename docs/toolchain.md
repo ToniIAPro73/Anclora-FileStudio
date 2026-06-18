@@ -3,6 +3,20 @@
 Todas las herramientas externas están documentadas en `scripts/toolchain.lock.json`.
 Este documento describe cada herramienta, su propósito y cómo verificar su estado.
 
+## Desktop PRO Native Tool Groups
+
+Desktop PRO groups native tools by task:
+
+- Imágenes: Sharp.
+- PDF: QPDF, Poppler, Tesseract.
+- Audio y vídeo: FFmpeg, FFprobe, yt-dlp.
+- Documentos: LibreOffice, Pandoc.
+- OCR: Tesseract, Poppler.
+- Archivos: 7-Zip.
+- Ebooks: Calibre.
+
+Windows portable must keep LibreOffice probes on `soffice.com` first.
+
 ## Herramientas del sistema
 
 ### FFmpeg + FFprobe

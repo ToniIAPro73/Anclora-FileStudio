@@ -87,7 +87,7 @@ const INPUT_FORMATS: Record<string, LoCategory> = {
   // Spreadsheet
   xlsx: "spreadsheet", xls: "spreadsheet", ods: "spreadsheet",
   // Presentation
-  pptx: "presentation", ppt: "presentation", odp: "presentation",
+  pptx: "presentation", ppt: "presentation",
 };
 
 const OUTPUT_BY_CATEGORY: Record<LoCategory, LoFormatDef[]> = {
@@ -103,7 +103,6 @@ const OUTPUT_BY_CATEGORY: Record<LoCategory, LoFormatDef[]> = {
   ],
   presentation: [
     { loFilter: "pdf", ext: "pdf", mime: "application/pdf", label: "PDF", category: "presentation" },
-    { loFilter: "odp", ext: "odp", mime: "application/vnd.oasis.opendocument.presentation", label: "ODP", category: "presentation" },
     { loFilter: "pptx", ext: "pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", label: "PowerPoint PPTX", category: "presentation" },
   ],
 };

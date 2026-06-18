@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   APP_NAME: z.string().default("Anclora FileStudio"),
-  APP_VERSION: z.string().default("0.1.0"),
+  APP_VERSION: z.string().default("0.2.0"),
 
   // ── Tool paths: ANCLORA_FILESTUDIO_* env vars (portable distribution) ─────────
   // These are set by the Windows portable launcher scripts.

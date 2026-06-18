@@ -26,6 +26,19 @@ Complete reference of all supported conversions, organized by engine.
 
 The Desktop matrix below remains the native engine matrix.
 
+## Desktop PRO Sections
+
+| Section | Native engine focus |
+|---|---|
+| Imágenes | Sharp |
+| PDF | QPDF, Poppler, Tesseract |
+| Audio y vídeo | FFmpeg, FFprobe, yt-dlp |
+| Documentos | LibreOffice, Pandoc |
+| OCR | Tesseract, Poppler |
+| Archivos | 7-Zip |
+| Ebooks | Calibre |
+| Más herramientas | Data Engine |
+
 ## Audio — FFmpeg Engine
 
 | Input Format | Output Format | Engine | Loss Profile | Notes |
@@ -242,11 +255,7 @@ The Desktop matrix below remains the native engine matrix.
 | ODS | PDF | LibreOffice | lossy | Spreadsheet → fixed layout |
 | ODS | XLSX | LibreOffice | metadata-risk | ODF → OOXML |
 | PPTX | PDF | LibreOffice | lossy | Presentation → fixed layout |
-| PPTX | ODP | LibreOffice | metadata-risk | OOXML → ODF |
 | PPT | PDF | LibreOffice | lossy | Legacy PowerPoint → PDF |
-| PPT | ODP | LibreOffice | metadata-risk | Legacy PowerPoint → ODF |
-| ODP | PDF | LibreOffice | lossy | Presentation → fixed layout |
-| ODP | PPTX | LibreOffice | metadata-risk | ODF → OOXML |
 
 ## Ebook — Calibre Engine
 

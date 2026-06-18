@@ -121,18 +121,16 @@ describe("LibreOfficeEngine — spreadsheet capabilities", () => {
 describe("LibreOfficeEngine — presentation capabilities", () => {
   const engine = new LibreOfficeEngine();
 
-  it("PPTX input offers PDF and ODP", () => {
+  it("PPTX input offers PDF only", () => {
     const caps = engine.getCapabilities(makeDescriptor("pptx", "presentation"), AVAILABLE_PROBE);
     const fmts = caps.map((c) => c.outputFormat);
     expect(fmts).toContain("pdf");
-    expect(fmts).toContain("odp");
+    expect(fmts).not.toContain("odp");
   });
 
-  it("ODP input offers PPTX and PDF", () => {
+  it("ODP input is not advertised because it is not reliable cross-platform", () => {
     const caps = engine.getCapabilities(makeDescriptor("odp", "presentation"), AVAILABLE_PROBE);
-    const fmts = caps.map((c) => c.outputFormat);
-    expect(fmts).toContain("pptx");
-    expect(fmts).toContain("pdf");
+    expect(caps).toEqual([]);
   });
 });
 

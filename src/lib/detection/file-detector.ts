@@ -163,7 +163,19 @@ async function detectByMagic(filePath: string): Promise<{ mime: string; format: 
 
 // ── ZIP structure probe (DOCX, XLSX, EPUB, PPTX, ODT…) ─────────────────────
 
-function probeZipContents(filePath: string): { mime: string; format: string } {
+const ODF_BY_EXTENSION: Record<string, { mime: string; format: string }> = {
+  odt: { mime: "application/vnd.oasis.opendocument.text", format: "odt" },
+  ods: { mime: "application/vnd.oasis.opendocument.spreadsheet", format: "ods" },
+  odp: { mime: "application/vnd.oasis.opendocument.presentation", format: "odp" },
+};
+
+const ODF_BY_MIMETYPE: Record<string, { mime: string; format: string }> = {
+  "application/vnd.oasis.opendocument.text": ODF_BY_EXTENSION.odt,
+  "application/vnd.oasis.opendocument.spreadsheet": ODF_BY_EXTENSION.ods,
+  "application/vnd.oasis.opendocument.presentation": ODF_BY_EXTENSION.odp,
+};
+
+function probeZipContents(filePath: string, ext: string | null): { mime: string; format: string } {
   try {
     const buf = fs.readFileSync(filePath);
     const str = buf.toString("binary");
@@ -179,9 +191,13 @@ function probeZipContents(filePath: string): { mime: string; format: string } {
     }
     if (str.includes("mimetype")) {
       const mimetypeMatch = str.match(/mimetype([a-z/+.-]{10,60})/);
+      const odf = mimetypeMatch ? ODF_BY_MIMETYPE[mimetypeMatch[1]] : null;
+      if (odf) return odf;
+      if (mimetypeMatch && ext && ODF_BY_EXTENSION[ext]) return ODF_BY_EXTENSION[ext];
       if (mimetypeMatch) return { mime: mimetypeMatch[1], format: "odf" };
     }
   } catch { /* ignore */ }
+  if (ext && ODF_BY_EXTENSION[ext]) return ODF_BY_EXTENSION[ext];
   return { mime: "application/zip", format: "zip" };
 }
 
@@ -250,7 +266,7 @@ export async function detectFile(filePath: string): Promise<DetectionResult> {
 
   // 2. For ZIP: probe internal structure
   if (format === "zip") {
-    const zipProbe = probeZipContents(filePath);
+    const zipProbe = probeZipContents(filePath, ext || null);
     mime = zipProbe.mime;
     format = zipProbe.format;
   }
