@@ -70,6 +70,7 @@ describe("PandocEngine — markdown→docx execution", () => {
     runSpy = vi
       .spyOn(ProcessRunner.prototype, "run")
       .mockImplementation(async (_opts) => {
+        void _opts;
         // Simulate Pandoc creating DOCX output
         const docxContent = Buffer.concat([
           DOCX_HEADER,
