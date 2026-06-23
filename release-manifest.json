@@ -1,0 +1,26 @@
+{
+  "$schema": "https://anclora.dev/schemas/release-manifest/v1",
+  "version": "PENDING",
+  "commit": "PENDING",
+  "buildDate": "PENDING",
+  "status": "pending",
+  "platforms": {
+    "windows-x64": {
+      "filename": "Anclora-FileStudio-Windows-x64-Core.zip",
+      "bytes": null,
+      "sha256": null,
+      "downloadUrl": null,
+      "essentialTools": ["yt-dlp", "ffmpeg", "ffprobe"],
+      "published": false
+    },
+    "linux-x64": {
+      "filename": "Anclora-FileStudio-Linux-x64.tar.zst",
+      "bytes": null,
+      "sha256": null,
+      "downloadUrl": null,
+      "essentialTools": ["yt-dlp", "ffmpeg", "ffprobe"],
+      "published": false
+    }
+  },
+  "notes": "Corrección crítica: calidad YouTube 4K/1440p, SSRF guard, diagnóstico honesto de dependencias opcionales."
+}
